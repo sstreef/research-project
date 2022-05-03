@@ -1,1 +1,1 @@
-# ehop-http-server
+# HTTP server with effect handlers
