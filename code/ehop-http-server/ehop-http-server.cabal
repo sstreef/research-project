@@ -31,6 +31,8 @@ library
       src
   build-depends:
       base >=4.7 && <5
+    , network
+    , polysemy
   default-language: Haskell2010
 
 executable ehop-http-server-exe
@@ -43,6 +45,8 @@ executable ehop-http-server-exe
   build-depends:
       base >=4.7 && <5
     , ehop-http-server
+    , network
+    , polysemy
   default-language: Haskell2010
 
 test-suite ehop-http-server-test
@@ -56,4 +60,6 @@ test-suite ehop-http-server-test
   build-depends:
       base >=4.7 && <5
     , ehop-http-server
+    , network
+    , polysemy
   default-language: Haskell2010
