@@ -10,6 +10,40 @@ extra-source-files:
 - README.md
 - ChangeLog.md
 
+ghc-options:
+# Recommended settings for polysemy
+- -O2
+- -flate-specialise
+- -fspecialise-aggressively
+- -fplugin=Polysemy.Plugin
+# Useful warnings
+- -Wall
+- -Wcompat
+- -Wredundant-constraints
+- -Wincomplete-record-updates
+- -Wincomplete-uni-patterns
+
+default-extensions:
+# Recommended extensions for polysemy
+- DataKinds
+- FlexibleContexts
+- GADTs
+- LambdaCase
+- PolyKinds
+- RankNTypes
+- ScopedTypeVariables
+- TypeApplications
+- TypeOperators
+- TypeFamilies
+- TemplateHaskell
+
+# Deriving extensions
+- GeneralizedNewtypeDeriving
+- DeriveGeneric
+
+# Misc extensions
+- OverloadedStrings
+
 # Metadata used when publishing your package
 # synopsis:            Short description of your package
 # category:            Web
@@ -17,12 +51,19 @@ extra-source-files:
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/sstreef/research-project/code/ehop-http-server#readme>
+description:         Please see the README on GitHub at <https://github.com/sstreef/research-project/tree/main/code/ehop-http-server>
 
 dependencies:
 - base >= 4.7 && < 5
 - network
+
+# PolySemy
 - polysemy
+- polysemy-plugin
+- polysemy-zoo
+
+# Misc
+- bytestring
 
 library:
   source-dirs: src
