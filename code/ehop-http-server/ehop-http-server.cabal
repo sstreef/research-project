@@ -25,6 +25,7 @@ source-repository head
 library
   exposed-modules:
       Lib
+      Server
   other-modules:
       Paths_ehop_http_server
   hs-source-dirs:
@@ -51,7 +52,7 @@ library
     , network
     , polysemy
     , polysemy-plugin
-    , polysemy-zoo
+    , polysemy-zoo >=0.8.0.0
   default-language: Haskell2010
 
 executable ehop-http-server-exe
@@ -83,7 +84,7 @@ executable ehop-http-server-exe
     , network
     , polysemy
     , polysemy-plugin
-    , polysemy-zoo
+    , polysemy-zoo >=0.8.0.0
   default-language: Haskell2010
 
 test-suite ehop-http-server-test
@@ -116,5 +117,5 @@ test-suite ehop-http-server-test
     , network
     , polysemy
     , polysemy-plugin
-    , polysemy-zoo
+    , polysemy-zoo >=0.8.0.0
   default-language: Haskell2010
