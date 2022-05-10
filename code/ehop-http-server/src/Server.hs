@@ -13,7 +13,6 @@ import Network.Socket.ByteString (recv, sendAll)
 bufferSize :: Int
 bufferSize = 1024
 
-
 run :: IO ()
 run = runTCPServer Nothing "3000" talk
   where

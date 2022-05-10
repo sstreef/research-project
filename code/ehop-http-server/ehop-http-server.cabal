@@ -24,6 +24,7 @@ source-repository head
 
 library
   exposed-modules:
+      Logging
       Server
   other-modules:
       Paths_ehop_http_server
