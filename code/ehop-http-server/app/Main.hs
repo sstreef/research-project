@@ -1,6 +1,6 @@
 module Main where
 
-import Server as S ( run )
+import Server as HTTP ( run )
 
 main :: IO ()
-main = S.run
+main = HTTP.run
