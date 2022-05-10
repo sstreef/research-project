@@ -24,7 +24,6 @@ source-repository head
 
 library
   exposed-modules:
-      Lib
       Server
   other-modules:
       Paths_ehop_http_server
