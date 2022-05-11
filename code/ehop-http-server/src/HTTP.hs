@@ -8,7 +8,7 @@ instance Show Status where
   show BadRequest = "400 Bad Request"
   show NotFound = "404 Not Found"
   show InternalServerError = "500 Internal Server Error"
-    
+
 
 data MethodType = GET | POST
     deriving (Show, Eq)
@@ -45,18 +45,12 @@ data Headers =  Response {
 
 instance Show Headers where
     show (Response _version _status _length _type _content) = unlines [
-            _version ++ ' ' : quote _status,
-            "Content-Length: " ++ quote _length,
-            "Content-Type: " ++ quote _type,
+            _version ++ ' ' : show _status,
+            "Content-Length: " ++ show _length,
+            "Content-Type: " ++ show _type,
             _content
         ]
-    show _ = ""
-
--- Helper functions for formatting headers
-
-quote :: Show a => a -> String
-quote x = quoteString $ show x
-
-quoteString :: String -> String 
-quoteString s = '"' : s ++ [ '"' ]
+    show (Request _method _path _version) = unwords [
+            show _method, _path, _version
+        ]
 
