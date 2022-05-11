@@ -1,8 +1,8 @@
-module HTTP.Types.Response where
+module Types.HTTP.Response where
     
-import HTTP.Types.General (Payload)
+import Types.HTTP.General (Payload)
     
-data Status = OK | BadRequest | NotFound | InternalServerError
+data Status = OK | BadRequest | NotFound | InternalServerError | MethodNotAllowed
     deriving Eq
 
 instance Show Status where
@@ -10,6 +10,7 @@ instance Show Status where
   show BadRequest = "400 Bad Request"
   show NotFound = "404 Not Found"
   show InternalServerError = "500 Internal Server Error"
+  show MethodNotAllowed = "405 Method Not Allowed"
 
 data ResponseHeaders = ResponseHeaders {
                     version :: String,

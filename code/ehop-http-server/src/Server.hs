@@ -8,39 +8,66 @@ import Control.Concurrent (forkFinally)
 import qualified Control.Exception as E
 import Control.Monad (unless, forever)
 import qualified Data.ByteString as S
-import Data.ByteString.Char8 (pack)
+import Data.ByteString.Char8 as C (unpack, pack, lines, words)
 import Network.Socket.ByteString (recv, sendAll)
 
 import Polysemy (Member, Sem, Embed, embed, runM)
 import Data.Function ( (&) )
 
-import HTTP.Types.Response
+import Types.HTTP.Response ( HTTPResponse (HTTPResponse), ResponseHeaders (ResponseHeaders), Status (BadRequest) )
+import Types.HTTP.Request ( HTTPRequest (HTTPRequest), RequestHeaders (RequestHeaders), parseMethodType )
+import Types.HTTP.General (Payload(Empty, Payload), ContentType (TextPlain))
 
 type RawHandler = S.ByteString -> S.ByteString
 
-type HTTPHandler = S.ByteString -> HTTPResponse
 
-convertResponse :: HTTPResponse -> S.ByteString
-convertResponse x = pack $ show x
+compileResponse :: HTTPResponse -> S.ByteString
+compileResponse x = C.pack $ show x
+
+parseRequest :: S.ByteString -> Either (String, Status) HTTPRequest
+parseRequest x = if S.null x
+    then Left ("400 Bad Request", BadRequest)
+    else
+      let ws = C.words (head xs)
+      in
+        if length ws == 3 
+        then let
+            methodTypeString = head ws
+            requestPath = C.unpack $ head $ tail ws
+            protocolVersion = C.unpack $ head $ tail $ tail ws
+          in
+            case parseMethodType methodTypeString of
+              (Right methodType) -> Right $ HTTPRequest
+                (RequestHeaders methodType requestPath protocolVersion)
+                Empty
+              (Left t) -> Left t
+        else
+          Left ("400 Bad Request", BadRequest)
+    where
+      xs = C.lines x
+
+type HTTPRequestHandler = HTTPRequest -> HTTPResponse
+
+requestMediator :: HTTPRequestHandler -> Either (String, Status) HTTPRequest -> HTTPResponse
+requestMediator handler res = case res of
+  (Left (err, code))  -> HTTPResponse (ResponseHeaders "HTTP/1.0" code) $ Payload (length err) TextPlain err
+  (Right req) -> handler req
+
 
 createTCPHandler :: RawHandler -> (Socket -> IO ())
 createTCPHandler handle = listener
     where
       listener s = do
-        -- Try to receive 1024 bytes
         msg <- recv s 1024
-        -- If message is not empty consume and recurse
         unless (S.null msg) $ do
-          -- Send all bytes to socket
           sendAll s $ handle msg
-          print $ show msg
-          -- Tail recurse to consume all bytes until none are left.
           listener s
 
-run :: HTTPHandler -> IO ()
-run handler = runTCPServer Nothing "3000" (createTCPHandler (convertResponse . handler))
+run :: HTTPRequestHandler -> IO ()
+run handler = runTCPServer Nothing "3000" hh
   & runM
-    
+  where
+    hh = createTCPHandler $ compileResponse . requestMediator handler . parseRequest
 
 -- from the "network-run" package.
 runTCPServer :: Member (Embed IO) r => Maybe HostName -> ServiceName -> (Socket -> IO a) -> Sem r ()

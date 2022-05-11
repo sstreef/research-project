@@ -24,10 +24,10 @@ source-repository head
 
 library
   exposed-modules:
-      HTTP.Types.General
-      HTTP.Types.Request
-      HTTP.Types.Response
       Server
+      Types.HTTP.General
+      Types.HTTP.Request
+      Types.HTTP.Response
   other-modules:
       Paths_ehop_http_server
   hs-source-dirs:

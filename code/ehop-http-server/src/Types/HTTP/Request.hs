@@ -1,9 +1,18 @@
-module HTTP.Types.Request where
+module Types.HTTP.Request where
 
-import HTTP.Types.General (Payload)
+import Types.HTTP.General (Payload)
+import Data.ByteString (ByteString)
+import Data.ByteString.Char8 (unpack)
+import Types.HTTP.Response (Status (MethodNotAllowed))
 
 data MethodType = GET | POST
     deriving (Show, Eq)
+
+parseMethodType :: ByteString -> Either (String, Status) MethodType
+parseMethodType s = case unpack s of
+    "GET"   -> Right GET
+    "POST"  -> Right POST
+    _       -> Left ("405 Method Not Allowed", MethodNotAllowed)
 
 data RequestHeaders = RequestHeaders {
                     -- | The HTTP method used; either GET or POST
@@ -19,4 +28,6 @@ instance Show RequestHeaders where
 
 data HTTPRequest = HTTPRequest RequestHeaders Payload
 
+instance Show HTTPRequest where
+    show (HTTPRequest headers payload) = show headers ++ show payload
 

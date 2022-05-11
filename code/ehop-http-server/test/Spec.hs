@@ -3,9 +3,9 @@
 import Test.Framework ( testGroup, defaultMain, Test )
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 
-import HTTP.Types.General (ContentType(TextPlain), Payload(Payload))
-import qualified HTTP.Types.Response as B
-import qualified HTTP.Types.Request as A
+import Types.HTTP.General (ContentType(TextPlain), Payload(Payload))
+import qualified Types.HTTP.Response as B
+import qualified Types.HTTP.Request as A
 
 
 main :: IO ()
