@@ -8,7 +8,7 @@ main :: IO ()
 main = defaultMain tests
 
 prop_show_http_response_headers = show (Response "HTTP/1.0" OK 11 TextPlain "Hello World") 
-    == "HTTP/1.0 200 OK\nContent-Length: 11\nContent-Type: text/plain\nHello World\n"
+    == "HTTP/1.0 200 OK\nContent-Length: 11\nContent-Type: text/plain\n\nHello World\n"
 prop_show_http_request_headers = show (Request GET "/" "HTTP/1.0") 
     == "GET / HTTP/1.0"
 

@@ -1,5 +1,9 @@
 module HTTP where
 
+{-
+Could add:
+* 415 Unsupported Media Type
+-}
 data Status = OK | BadRequest | NotFound | InternalServerError
     deriving Eq
 
@@ -8,7 +12,6 @@ instance Show Status where
   show BadRequest = "400 Bad Request"
   show NotFound = "404 Not Found"
   show InternalServerError = "500 Internal Server Error"
-
 
 data MethodType = GET | POST
     deriving (Show, Eq)
@@ -48,7 +51,7 @@ instance Show Headers where
             _version ++ ' ' : show _status,
             "Content-Length: " ++ show _length,
             "Content-Type: " ++ show _type,
-            _content
+            '\n' : _content
         ]
     show (Request _method _path _version) = unwords [
             show _method, _path, _version
