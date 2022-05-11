@@ -10,26 +10,33 @@ import Control.Monad (unless, forever)
 import qualified Data.ByteString as S
 import Network.Socket.ByteString (recv, sendAll)
 
-bufferSize :: Int
-bufferSize = 1024
+import Polysemy (Member, Sem, Embed, embed, runM)
+import Data.Function ( (&) )
 
-run :: IO ()
-run = runTCPServer Nothing "3000" talk
-  where
-    talk s = do
-      -- Try to receive 1024 bytes
-      msg <- recv s bufferSize
-      -- If message is not empty consume and recurse
-      unless (S.null msg) $ do
-        -- Send all bytes to socket
-        sendAll s msg
-        print $ show msg
-        -- Tail recurse to consume all bytes until none are left.
-        talk s
+type Handler = S.ByteString -> S.ByteString
+
+createTCPHandler :: Handler -> (Socket -> IO ())
+createTCPHandler handle = listener
+    where
+      listener s = do
+        -- Try to receive 1024 bytes
+        msg <- recv s 1024
+        -- If message is not empty consume and recurse
+        unless (S.null msg) $ do
+          -- Send all bytes to socket
+          sendAll s $ handle msg
+          print $ show msg
+          -- Tail recurse to consume all bytes until none are left.
+          listener s
+
+run :: Handler -> IO ()
+run handler = runTCPServer Nothing "3000" (createTCPHandler handler)
+  & runM
+    
 
 -- from the "network-run" package.
-runTCPServer :: Maybe HostName -> ServiceName -> (Socket -> IO a) -> IO a
-runTCPServer mhost port server = withSocketsDo $ do
+runTCPServer :: Member (Embed IO) r => Maybe HostName -> ServiceName -> (Socket -> IO a) -> Sem r ()
+runTCPServer mhost port server = embed $ withSocketsDo $ do
     addr <- resolve
     E.bracket (open addr) close loop
   where
