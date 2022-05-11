@@ -24,7 +24,7 @@ source-repository head
 
 library
   exposed-modules:
-      Logging
+      HTTP
       Server
   other-modules:
       Paths_ehop_http_server
@@ -45,14 +45,17 @@ library
       GeneralizedNewtypeDeriving
       DeriveGeneric
       OverloadedStrings
-  ghc-options: -O2 -flate-specialise -fspecialise-aggressively -fplugin=Polysemy.Plugin -Wall -Wcompat -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns
+  ghc-options: -O2 -flate-specialise -Wall -Wcompat -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns
   build-depends:
-      base >=4.7 && <5
+      QuickCheck >=2.13 && <2.15
+    , base >=4.7 && <5
     , bytestring
     , network
     , polysemy
     , polysemy-plugin
     , polysemy-zoo >=0.8.0.0
+    , test-framework ==0.8.*
+    , test-framework-quickcheck2 ==0.3.*
   default-language: Haskell2010
 
 executable ehop-http-server-exe
@@ -76,15 +79,18 @@ executable ehop-http-server-exe
       GeneralizedNewtypeDeriving
       DeriveGeneric
       OverloadedStrings
-  ghc-options: -O2 -flate-specialise -fspecialise-aggressively -fplugin=Polysemy.Plugin -Wall -Wcompat -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -O2 -flate-specialise -Wall -Wcompat -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      QuickCheck >=2.13 && <2.15
+    , base >=4.7 && <5
     , bytestring
     , ehop-http-server
     , network
     , polysemy
     , polysemy-plugin
     , polysemy-zoo >=0.8.0.0
+    , test-framework ==0.8.*
+    , test-framework-quickcheck2 ==0.3.*
   default-language: Haskell2010
 
 test-suite ehop-http-server-test
@@ -109,13 +115,16 @@ test-suite ehop-http-server-test
       GeneralizedNewtypeDeriving
       DeriveGeneric
       OverloadedStrings
-  ghc-options: -O2 -flate-specialise -fspecialise-aggressively -fplugin=Polysemy.Plugin -Wall -Wcompat -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -O2 -flate-specialise -Wall -Wcompat -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      QuickCheck >=2.13 && <2.15
+    , base >=4.7 && <5
     , bytestring
     , ehop-http-server
     , network
     , polysemy
     , polysemy-plugin
     , polysemy-zoo >=0.8.0.0
+    , test-framework ==0.8.*
+    , test-framework-quickcheck2 ==0.3.*
   default-language: Haskell2010

@@ -14,8 +14,8 @@ ghc-options:
 # Recommended settings for polysemy 
 - -O2
 - -flate-specialise
-- -fspecialise-aggressively
-- -fplugin=Polysemy.Plugin
+# - -fspecialise-aggressively
+# - -fplugin=Polysemy.Plugin
 # Useful warnings
 - -Wall
 - -Wcompat
@@ -64,6 +64,11 @@ dependencies:
 
 # Misc
 - bytestring
+
+# Testing
+- test-framework >= 0.8 && < 0.9
+- test-framework-quickcheck2 >= 0.3 && < 0.4
+- QuickCheck >= 2.13 && < 2.15
 
 library:
   source-dirs: src

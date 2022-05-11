@@ -5,7 +5,7 @@ import Polysemy (makeSem)
 data Logger m a where
     Log     :: String -> Logger m () -- Logs a string
     LogLine :: String -> Logger m () -- Logs a string with line ending
-    Flush   :: Logger m () -- Flushes log to file
+    Flush   :: Logger m () -- Flushes log to output and clears buffer
 
 makeSem ''Logger
 
