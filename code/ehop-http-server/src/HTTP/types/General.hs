@@ -14,14 +14,14 @@ data Payload = Payload {
                     -- | The type of content
                     contentType :: ContentType,
                     -- | The content of the response
-                    content :: String 
+                    content :: String
                 } | Empty
 
 instance Show Payload where
-    show Empty = ""
+    show Empty = "\n"
     show p = unlines [
-            show $ contentLength p,
-            show $ contentType p,
-            content p
+            "Content-Length: " ++ show (contentLength p),
+            "Content-Type: " ++ show (contentType p),
+            '\n' : content p
         ]
 

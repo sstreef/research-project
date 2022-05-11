@@ -1,4 +1,4 @@
-module HTTP.Types.Request ( MethodType, RequestHeaders ) where
+module HTTP.Types.Request where
 
 import HTTP.Types.General (Payload)
 
@@ -15,7 +15,7 @@ data RequestHeaders = RequestHeaders {
                 }
 
 instance Show RequestHeaders where
-    show h = unwords [show $ method h, path h, version h]
+    show h = unwords [show $ method h, path h, version h] ++ "\n"
 
 data HTTPResponse = HTTPRequest RequestHeaders Payload
 

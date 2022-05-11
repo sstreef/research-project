@@ -1,7 +1,7 @@
 module Main where
 
 import Server as HTTPServer ( run )
-import HTTP (Headers(Response), Status(OK, BadRequest), ContentType(TextPlain))
+import HTTPD (Headers(Response), Status(OK, BadRequest), ContentType(TextPlain))
 import Data.ByteString.Char8 (pack, lines, words)
 import qualified Data.ByteString as S
 

@@ -24,7 +24,10 @@ source-repository head
 
 library
   exposed-modules:
-      HTTP
+      HTTP.Types.General
+      HTTP.Types.Request
+      HTTP.Types.Response
+      HTTPD
       Server
   other-modules:
       Paths_ehop_http_server

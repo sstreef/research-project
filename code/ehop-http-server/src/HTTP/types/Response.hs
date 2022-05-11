@@ -1,4 +1,4 @@
-module HTTP.Types.Response (Status, ResponseHeaders) where
+module HTTP.Types.Response where
     
 import HTTP.Types.General (Payload)
     
@@ -17,12 +17,12 @@ data ResponseHeaders = ResponseHeaders {
                   }
 
 instance Show ResponseHeaders where
-    show h = unlines [version h, show $ status h]
+    show h = unwords [version h, show $ status h] ++ "\n"
 
 data HTTPResponse = HTTPResponse ResponseHeaders Payload
 
-
-
+instance Show HTTPResponse where
+  show (HTTPResponse headers payload) = show headers ++ show payload
 
 
 

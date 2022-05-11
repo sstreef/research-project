@@ -1,4 +1,4 @@
-module HTTP where
+module HTTPD where
 
 {-
 Could add:
