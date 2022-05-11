@@ -24,6 +24,8 @@ source-repository head
 
 library
   exposed-modules:
+      Effects.FileRead
+      Effects.Logging
       Server
       Types.HTTP.General
       Types.HTTP.Request
@@ -47,7 +49,7 @@ library
       GeneralizedNewtypeDeriving
       DeriveGeneric
       OverloadedStrings
-  ghc-options: -O2 -flate-specialise -Wall -Wcompat -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns
+  ghc-options: -flate-specialise -fspecialise-aggressively -fplugin=Polysemy.Plugin -Wall -Wcompat -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns
   build-depends:
       QuickCheck >=2.13 && <2.15
     , base >=4.7 && <5
@@ -81,7 +83,7 @@ executable ehop-http-server-exe
       GeneralizedNewtypeDeriving
       DeriveGeneric
       OverloadedStrings
-  ghc-options: -O2 -flate-specialise -Wall -Wcompat -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -flate-specialise -fspecialise-aggressively -fplugin=Polysemy.Plugin -Wall -Wcompat -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck >=2.13 && <2.15
     , base >=4.7 && <5
@@ -117,7 +119,7 @@ test-suite ehop-http-server-test
       GeneralizedNewtypeDeriving
       DeriveGeneric
       OverloadedStrings
-  ghc-options: -O2 -flate-specialise -Wall -Wcompat -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -flate-specialise -fspecialise-aggressively -fplugin=Polysemy.Plugin -Wall -Wcompat -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck >=2.13 && <2.15
     , base >=4.7 && <5

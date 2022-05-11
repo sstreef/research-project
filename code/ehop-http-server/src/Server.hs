@@ -20,17 +20,13 @@ import Types.HTTP.General (Payload(Empty, Payload), ContentType (TextPlain))
 
 type RawHandler = S.ByteString -> S.ByteString
 
-
-compileResponse :: HTTPResponse -> S.ByteString
-compileResponse x = C.pack $ show x
-
 parseRequest :: S.ByteString -> Either (String, Status) HTTPRequest
 parseRequest x = if S.null x
     then Left ("400 Bad Request", BadRequest)
     else
       let ws = C.words (head xs)
       in
-        if length ws == 3 
+        if length ws == 3
         then let
             methodTypeString = head ws
             requestPath = C.unpack $ head $ tail ws
@@ -64,10 +60,8 @@ createTCPHandler handle = listener
           listener s
 
 run :: HTTPRequestHandler -> IO ()
-run handler = runTCPServer Nothing "3000" hh
+run handler = runTCPServer Nothing "3000" (createTCPHandler $ C.pack . show . requestMediator handler . parseRequest)
   & runM
-  where
-    hh = createTCPHandler $ compileResponse . requestMediator handler . parseRequest
 
 -- from the "network-run" package.
 runTCPServer :: Member (Embed IO) r => Maybe HostName -> ServiceName -> (Socket -> IO a) -> Sem r ()

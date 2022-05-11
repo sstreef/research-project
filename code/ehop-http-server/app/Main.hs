@@ -12,7 +12,9 @@ import Types.HTTP.Request (HTTPRequest (HTTPRequest), MethodType (GET), RequestH
 handler :: HTTPRequest -> HTTPResponse
 handler (HTTPRequest headers _) = case method headers of
     GET ->  HTTPResponse (ResponseHeaders "HTTP/1.0" OK) (Payload 11 TextPlain "Hello World")
-    _   -> HTTPResponse (ResponseHeaders "HTTP/1.0" BadRequest) (Payload 5 TextPlain "Error")
+    _   ->  HTTPResponse (ResponseHeaders "HTTP/1.0" BadRequest) (Payload 5 TextPlain "Error")
+
+
 
 main :: IO ()
 main = run handler

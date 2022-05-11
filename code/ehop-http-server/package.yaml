@@ -12,10 +12,10 @@ extra-source-files:
 
 ghc-options:
 # Recommended settings for polysemy 
-- -O2
+# - -O2
 - -flate-specialise
-# - -fspecialise-aggressively
-# - -fplugin=Polysemy.Plugin
+- -fspecialise-aggressively
+- -fplugin=Polysemy.Plugin
 # Useful warnings
 - -Wall
 - -Wcompat
