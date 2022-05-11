@@ -9,6 +9,7 @@ import Prelude hiding (lines, words)
 
 type Handler = S.ByteString -> S.ByteString
 
+
 customHandler :: Handler
 customHandler x = 
     pack $ show $ case head $ words firstHeader  of
