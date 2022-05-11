@@ -8,14 +8,22 @@ import Control.Concurrent (forkFinally)
 import qualified Control.Exception as E
 import Control.Monad (unless, forever)
 import qualified Data.ByteString as S
+import Data.ByteString.Char8 (pack)
 import Network.Socket.ByteString (recv, sendAll)
 
 import Polysemy (Member, Sem, Embed, embed, runM)
 import Data.Function ( (&) )
 
-type Handler = S.ByteString -> S.ByteString
+import HTTP.Types.Response
 
-createTCPHandler :: Handler -> (Socket -> IO ())
+type RawHandler = S.ByteString -> S.ByteString
+
+type HTTPHandler = S.ByteString -> HTTPResponse
+
+convertResponse :: HTTPResponse -> S.ByteString
+convertResponse x = pack $ show x
+
+createTCPHandler :: RawHandler -> (Socket -> IO ())
 createTCPHandler handle = listener
     where
       listener s = do
@@ -29,8 +37,8 @@ createTCPHandler handle = listener
           -- Tail recurse to consume all bytes until none are left.
           listener s
 
-run :: Handler -> IO ()
-run handler = runTCPServer Nothing "3000" (createTCPHandler handler)
+run :: HTTPHandler -> IO ()
+run handler = runTCPServer Nothing "3000" (createTCPHandler (convertResponse . handler))
   & runM
     
 

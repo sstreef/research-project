@@ -1,25 +1,23 @@
 module Main where
 
 import Server as HTTPServer ( run )
-import HTTPD (Headers(Response), Status(OK, BadRequest), ContentType(TextPlain))
-import Data.ByteString.Char8 (pack, lines, words)
+import Data.ByteString.Char8 (words, lines)
 import qualified Data.ByteString as S
 
 import Prelude hiding (lines, words)
+import HTTP.Types.General (Payload(Payload), ContentType (TextPlain))
+import HTTP.Types.Response
+    ( HTTPResponse(..), Status(BadRequest, OK), ResponseHeaders (ResponseHeaders) )
 
-type Handler = S.ByteString -> S.ByteString
 
-
-customHandler :: Handler
+customHandler :: S.ByteString -> HTTPResponse
 customHandler x = 
-    pack $ show $ case head $ words firstHeader  of
-        "GET"   -> Response "HTTP/1.0" OK 11 TextPlain "Hello World"
-        _       -> Response "HTTP/1.0" BadRequest 5 TextPlain "Error"
+    case head $ words firstHeader  of
+        "GET"   -> HTTPResponse (ResponseHeaders "HTTP/1.0" OK) $ Payload 11 TextPlain "Hello World"
+        _       -> HTTPResponse (ResponseHeaders "HTTP/1.0" BadRequest) $ Payload 5 TextPlain "Error"
     where
         xs = lines x
         firstHeader = if not (null xs) then head xs else S.empty
-
-
 
 main :: IO ()
 main = run customHandler

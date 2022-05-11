@@ -17,6 +17,6 @@ data RequestHeaders = RequestHeaders {
 instance Show RequestHeaders where
     show h = unwords [show $ method h, path h, version h] ++ "\n"
 
-data HTTPResponse = HTTPRequest RequestHeaders Payload
+data HTTPRequest = HTTPRequest RequestHeaders Payload
 
 
