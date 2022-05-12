@@ -1,6 +1,6 @@
 module Types.HTTP.Response where
     
-import Types.HTTP.General (Payload)
+import Types.HTTP.General (Payload (Payload), ContentType (TextPlain))
     
 data Status = OK | BadRequest | NotFound | InternalServerError | MethodNotAllowed
     deriving Eq
@@ -26,4 +26,7 @@ instance Show HTTPResponse where
   show (HTTPResponse headers payload) = show headers ++ show payload
 
 
-
+createResponse :: String -> Status -> HTTPResponse
+createResponse s st = HTTPResponse (ResponseHeaders s st) (Payload (length content) TextPlain content)
+  where
+    content = show st

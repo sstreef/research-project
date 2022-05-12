@@ -5,7 +5,7 @@ import Types.HTTP.Request (MethodType (GET, POST), HTTPRequest (HTTPRequest), Re
 import Data.List (intercalate)
 import Types.HTTP.General (Payload(Empty, Payload), ContentType (TextPlain))
 import Data.Char
-import Types.HTTP.Response (HTTPResponse (HTTPResponse), ResponseHeaders (ResponseHeaders), Status (BadRequest))
+import Types.HTTP.Response (Status (BadRequest), createResponse, HTTPResponse (HTTPResponse))
 
 -- Custom Parsers
 urlPathSymbol :: Parser Char
@@ -75,5 +75,5 @@ parseRequest' = do
 
 parseRequest :: String -> Either HTTPResponse HTTPRequest
 parseRequest s = case applyParser parseRequest' s of
-    Nothing     -> Left $ HTTPResponse (ResponseHeaders "HTTP/1.0" BadRequest) (Payload 11 TextPlain "Bad Request")
+    Nothing     -> Left $ createResponse "HTTP/1.0" BadRequest
     (Just x)    -> Right x

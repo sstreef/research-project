@@ -26,6 +26,7 @@ library
   exposed-modules:
       Effects.FileRead
       Effects.Logging
+      Effects.RequestHandling
       Parsers.Parser
       Parsers.Parsing
       Server
@@ -56,6 +57,7 @@ library
       QuickCheck >=2.13 && <2.15
     , base >=4.7 && <5
     , bytestring
+    , containers
     , network
     , polysemy
     , polysemy-plugin
@@ -90,6 +92,7 @@ executable ehop-http-server-exe
       QuickCheck >=2.13 && <2.15
     , base >=4.7 && <5
     , bytestring
+    , containers
     , ehop-http-server
     , network
     , polysemy
@@ -126,6 +129,7 @@ test-suite ehop-http-server-test
       QuickCheck >=2.13 && <2.15
     , base >=4.7 && <5
     , bytestring
+    , containers
     , ehop-http-server
     , network
     , polysemy

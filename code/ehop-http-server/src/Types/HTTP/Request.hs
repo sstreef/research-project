@@ -6,7 +6,7 @@ import Data.ByteString.Char8 (unpack)
 import Types.HTTP.Response (Status (MethodNotAllowed))
 
 data MethodType = GET | POST
-    deriving (Show, Eq)
+    deriving (Show, Eq, Ord)
 
 parseMethodType :: ByteString -> Either (String, Status) MethodType
 parseMethodType s = case unpack s of

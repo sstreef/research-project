@@ -64,6 +64,7 @@ dependencies:
 
 # Misc
 - bytestring
+- containers
 
 # Testing
 - test-framework >= 0.8 && < 0.9
