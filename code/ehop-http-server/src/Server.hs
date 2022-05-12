@@ -18,6 +18,8 @@ import Types.HTTP.Response ( HTTPResponse (HTTPResponse), ResponseHeaders (Respo
 import Types.HTTP.Request ( HTTPRequest (HTTPRequest), RequestHeaders (RequestHeaders), parseMethodType )
 import Types.HTTP.General (Payload(Empty, Payload), ContentType (TextPlain))
 
+import Parsers.Parser as P
+
 type RawHandler = S.ByteString -> S.ByteString
 
 parseRequest :: S.ByteString -> Either (String, Status) HTTPRequest
@@ -42,6 +44,11 @@ parseRequest x = if S.null x
     where
       xs = C.lines x
 
+handleRequest :: S.ByteString -> Either (String, Status) HTTPRequest
+handleRequest x = case P.parseRequest $ C.unpack x of
+      (Just req)  -> Right req
+      Nothing     -> Left ("Bad Request", BadRequest)
+
 type HTTPRequestHandler = HTTPRequest -> HTTPResponse
 
 requestMediator :: HTTPRequestHandler -> Either (String, Status) HTTPRequest -> HTTPResponse
@@ -57,10 +64,11 @@ createTCPHandler handle = listener
         msg <- recv s 1024
         unless (S.null msg) $ do
           sendAll s $ handle msg
+          print msg
           listener s
 
 run :: HTTPRequestHandler -> IO ()
-run handler = runTCPServer Nothing "3000" (createTCPHandler $ C.pack . show . requestMediator handler . parseRequest)
+run handler = runTCPServer Nothing "3000" (createTCPHandler $ C.pack . show . requestMediator handler . handleRequest)
   & runM
 
 -- from the "network-run" package.
