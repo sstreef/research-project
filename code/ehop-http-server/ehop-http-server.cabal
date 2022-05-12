@@ -26,6 +26,8 @@ library
   exposed-modules:
       Effects.FileRead
       Effects.Logging
+      Parsers.Parser
+      Parsers.Parsing
       Server
       Types.HTTP.General
       Types.HTTP.Request
