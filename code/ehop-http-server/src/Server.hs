@@ -8,67 +8,34 @@ import Control.Concurrent (forkFinally)
 import qualified Control.Exception as E
 import Control.Monad (unless, forever)
 import qualified Data.ByteString as S
-import Data.ByteString.Char8 as C (unpack, pack, lines, words)
+import Data.ByteString.Char8 as C (unpack, pack)
 import Network.Socket.ByteString (recv, sendAll)
 
 import Polysemy (Member, Sem, Embed, embed, runM)
 import Data.Function ( (&) )
 
-import Types.HTTP.Response ( HTTPResponse (HTTPResponse), ResponseHeaders (ResponseHeaders), Status (BadRequest) )
-import Types.HTTP.Request ( HTTPRequest (HTTPRequest), RequestHeaders (RequestHeaders), parseMethodType )
-import Types.HTTP.General (Payload(Empty, Payload), ContentType (TextPlain))
-
-import Parsers.Parser as P
-
-type RawHandler = S.ByteString -> S.ByteString
-
-parseRequest :: S.ByteString -> Either (String, Status) HTTPRequest
-parseRequest x = if S.null x
-    then Left ("400 Bad Request", BadRequest)
-    else
-      let ws = C.words (head xs)
-      in
-        if length ws == 3
-        then let
-            methodTypeString = head ws
-            requestPath = C.unpack $ head $ tail ws
-            protocolVersion = C.unpack $ head $ tail $ tail ws
-          in
-            case parseMethodType methodTypeString of
-              (Right methodType) -> Right $ HTTPRequest
-                (RequestHeaders methodType requestPath protocolVersion)
-                Empty
-              (Left t) -> Left t
-        else
-          Left ("400 Bad Request", BadRequest)
-    where
-      xs = C.lines x
-
-handleRequest :: S.ByteString -> Either (String, Status) HTTPRequest
-handleRequest x = case P.parseRequest $ C.unpack x of
-      (Just req)  -> Right req
-      Nothing     -> Left ("Bad Request", BadRequest)
+import Parsers.Parser as P ( parseRequest )
+import Types.HTTP.Response (HTTPResponse)
+import Types.HTTP.Request (HTTPRequest)
 
 type HTTPRequestHandler = HTTPRequest -> HTTPResponse
 
-requestMediator :: HTTPRequestHandler -> Either (String, Status) HTTPRequest -> HTTPResponse
-requestMediator handler res = case res of
-  (Left (err, code))  -> HTTPResponse (ResponseHeaders "HTTP/1.0" code) $ Payload (length err) TextPlain err
-  (Right req) -> handler req
+requestMediator :: HTTPRequestHandler -> S.ByteString -> HTTPResponse
+requestMediator handler s  = case P.parseRequest $ C.unpack s of
+      (Right req) -> handler req
+      (Left resp) -> resp
 
-
-createTCPHandler :: RawHandler -> (Socket -> IO ())
+createTCPHandler :: (S.ByteString -> S.ByteString) -> (Socket -> IO ())
 createTCPHandler handle = listener
     where
       listener s = do
         msg <- recv s 1024
         unless (S.null msg) $ do
           sendAll s $ handle msg
-          print msg
           listener s
 
 run :: HTTPRequestHandler -> IO ()
-run handler = runTCPServer Nothing "3000" (createTCPHandler $ C.pack . show . requestMediator handler . handleRequest)
+run handler = runTCPServer Nothing "3000" (createTCPHandler $ C.pack . show . requestMediator handler)
   & runM
 
 -- from the "network-run" package.

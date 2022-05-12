@@ -3,8 +3,9 @@ module Parsers.Parser where
 import Parsers.Parsing
 import Types.HTTP.Request (MethodType (GET, POST), HTTPRequest (HTTPRequest), RequestHeaders (RequestHeaders))
 import Data.List (intercalate)
-import Types.HTTP.General (Payload(Empty))
+import Types.HTTP.General (Payload(Empty, Payload), ContentType (TextPlain))
 import Data.Char
+import Types.HTTP.Response (HTTPResponse (HTTPResponse), ResponseHeaders (ResponseHeaders), Status (BadRequest))
 
 -- Custom Parsers
 urlPathSymbol :: Parser Char
@@ -64,7 +65,6 @@ parseVersion = do
     c <- nat
     pure $ x ++ (show a ++ b : show c)
 
-
 parseRequest' :: Parser HTTPRequest
 parseRequest' = do
     m <- parseMethod
@@ -73,8 +73,7 @@ parseRequest' = do
     _ <- many requestSymbol
     pure $ HTTPRequest (RequestHeaders m p v) Empty
 
--- >>> parseRequest "GET /hello HTTP/1.1\r\nUser-Agent: PostmanRuntime/7.29.0\r\nAccept: */*\r\nPostman-Token: 63d250f7-ce47-4699-a3f4-fa66d4ff3d4e\r\nHost: localhost:3000\r\n\r\n"
--- Just GET /hello HTTP/1.1
-
-parseRequest :: String -> Maybe HTTPRequest
-parseRequest = applyParser parseRequest'
+parseRequest :: String -> Either HTTPResponse HTTPRequest
+parseRequest s = case applyParser parseRequest' s of
+    Nothing     -> Left $ HTTPResponse (ResponseHeaders "HTTP/1.0" BadRequest) (Payload 11 TextPlain "Bad Request")
+    (Just x)    -> Right x
