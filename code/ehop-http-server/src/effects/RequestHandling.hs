@@ -13,6 +13,10 @@ type HTTPHandler = HTTPRequest -> HTTPResponse
 
 {-
     Should register http handlers and allow for resolving methods with paths
+
+    Possible TODOs:
+    * Add request forwarding
+    * Add static file handler in resolve (path should be saved in a state)
 -}
 data RequestHandling m a where
     Register    :: MethodType -> String -> HTTPHandler -> RequestHandling m ()

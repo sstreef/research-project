@@ -14,7 +14,7 @@ main = runWith server
         server ::   Member RequestHandling r => Sem r ()
         server = do
             register GET "/person" (\_ ->
-                createJSONResponse (Just OK) "{ \"Name\": \"Bob\", \"Age\": 27 }")
+                createJSONResponse (Just OK) "{ \"Name\": \"Bob\", \"Age\": 27, \"Gender\": \"Male\" }")
                 
             register GET "/hello" (\_ -> 
                 createHTMLResponse (Just OK) "<h2>Hello World! :-)</h2>")
