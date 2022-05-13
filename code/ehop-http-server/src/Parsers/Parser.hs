@@ -35,7 +35,7 @@ applyParser p s = case parse p s of
 parseMethod :: Parser MethodType
 parseMethod = do
         _ <- symbol $ show GET
-        return GET 
+        return GET
     <|> do
         _ <- symbol $ show POST
         return POST
@@ -70,7 +70,7 @@ parseRequest' = do
     m <- parseMethod
     p <- parsePath
     v <- parseVersion
-    _ <- many requestSymbol
+    _ <- many (sat (const True))
     pure $ HTTPRequest (RequestHeaders m p v) Empty
 
 parseRequest :: String -> Either HTTPResponse HTTPRequest

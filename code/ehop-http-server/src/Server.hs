@@ -1,4 +1,4 @@
-module Server (runWith) where
+module Server ( runWith, ServerSetup ) where
 
 import Effects.RequestHandling (RequestHandling, resolve, runRequestHandling, HTTPHandlerStore)
 
@@ -20,8 +20,11 @@ import Types.HTTP.Request (RequestHeaders (path, method), getHeaders)
 import qualified Data.Map.Strict as Map
 import Polysemy.KVStore (runKVStorePurely)
 import Data.Function ((&))
+import Data.Maybe
 
-runWith :: Sem [RequestHandling, HTTPHandlerStore] () -> IO ()
+type ServerSetup = Sem [RequestHandling, HTTPHandlerStore] ()
+
+runWith :: ServerSetup -> IO ()
 runWith server = runTCPServer Nothing "3000" $ createTCPHandler pipe
   where
     pipe :: S.ByteString -> S.ByteString
@@ -35,7 +38,7 @@ runWith server = runTCPServer Nothing "3000" $ createTCPHandler pipe
 
 resolveTCPRequest ::   Member RequestHandling r => S.ByteString -> Sem r S.ByteString
 resolveTCPRequest msg = do
-        case parseRequest $ C.unpack msg of 
+        case parseRequest $ C.unpack msg of
             Left response   -> wrap response
             Right request -> let
                 headers = getHeaders request
@@ -60,6 +63,7 @@ createTCPHandler handle = listener
 runTCPServer :: Maybe HostName -> ServiceName -> (Socket -> IO a) -> IO ()
 runTCPServer mhost port server = withSocketsDo $ do
     addr <- resolve'
+    print $ "Started listening at " ++ fromMaybe "127.0.0.1" mhost ++ ':' : show port
     E.bracket (open addr) close loop
   where
     -- 
