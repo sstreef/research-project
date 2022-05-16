@@ -22,6 +22,7 @@ import Polysemy.KVStore (runKVStorePurely)
 import Data.Function ((&))
 import Data.Maybe
 
+-- type ServerSetup = Sem [RequestHandling, HTTPHandlerStore] ()
 type ServerSetup = Sem [RequestHandling, HTTPHandlerStore] ()
 
 runWith :: ServerSetup -> IO ()
@@ -36,7 +37,7 @@ runWith server = runTCPServer Nothing "3000" $ createTCPHandler pipe
               & run
               & snd
 
-resolveTCPRequest ::   Member RequestHandling r => S.ByteString -> Sem r S.ByteString
+resolveTCPRequest :: Member RequestHandling r => S.ByteString -> Sem r S.ByteString
 resolveTCPRequest msg = do
         case parseRequest $ C.unpack msg of
             Left response   -> wrap response
