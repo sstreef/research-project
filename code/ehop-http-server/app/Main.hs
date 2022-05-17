@@ -1,7 +1,6 @@
 module Main where
 
 import Effects.RequestHandling ( register, setStaticFilePath )
-import Prelude hiding (lines, words)
 import Server ( runWith, ServerSetup )
 import Types.HTTP.Response ( createHTMLResponse, createJSONResponse, Status(OK) )
 import Types.HTTP.Request ( MethodType (GET) )
@@ -13,6 +12,7 @@ main = runWith (Just "80") server
         server :: ServerSetup
         server = do
             setStaticFilePath "resources"
+            
             register GET "/person" (\_ ->
                 createJSONResponse (Just OK) "{ \"Name\": \"Bob\", \"Age\": 27, \"Gender\": \"Male\" }")
                 

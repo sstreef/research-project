@@ -44,3 +44,9 @@ createHTMLResponse = createContentResponse (Just TextHtml)
 
 createJSONResponse :: Maybe Status -> String -> HTTPResponse
 createJSONResponse = createContentResponse (Just ApplicationJson)
+
+notFoundResponse :: HTTPResponse
+notFoundResponse = createStatusResponse NotFound
+
+badRequestResponse :: HTTPResponse
+badRequestResponse = createStatusResponse BadRequest

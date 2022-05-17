@@ -1,6 +1,6 @@
 module Server ( runWith, ServerSetup ) where
 
-import Effects.RequestHandling (RequestHandling, resolve, runRequestHandling, HTTPHandlerStore, HTTPStaticFileState)
+import Effects.RequestHandling (RequestHandling, resolveRequest, resolveFileRequest, runRequestHandling, HTTPHandlerStore, HTTPStaticFileState)
 
 import Network.Socket
 import Control.Monad (unless, forever, void)
@@ -14,6 +14,8 @@ import qualified Control.Exception as E
 
 import Parsers.Parser as P ( parseRequest )
 import Types.HTTP.Response ( HTTPResponse )
+import qualified Types.HTTP.Response as Types.Response
+import Types.HTTP.Request ( HTTPRequest )
 
 
 import qualified Data.Map.Strict as Map
@@ -21,45 +23,49 @@ import Polysemy.KVStore (runKVStorePurely)
 import Data.Function ((&))
 import Data.Maybe ( fromMaybe )
 import Polysemy.State (runState)
+import Effects.FileReading (runFileReadingIO, FileReading)
 
-type ServerSetup = Sem '[RequestHandling, HTTPStaticFileState, HTTPHandlerStore, Embed IO]  ()
+type ServerSetup = Sem '[RequestHandling, HTTPStaticFileState, HTTPHandlerStore, FileReading, Embed IO]  ()
 
 type Port = String
 
 runWith :: Maybe Port -> ServerSetup -> IO ()
-runWith port server = runTCPServer Nothing (fromMaybe "3000" port) $ createTCPHandler $ normalize pipe
+runWith port serverSetup = runTCPServer Nothing (fromMaybe "3000" port) socketListener
   where
-    pipe s = (do
-                server                -- Registers handlers by user in effect
-                resolveTCPRequest s)  -- Resolves request by using user registered requests
-            & runRequestHandling
-            & runState Nothing
-            & runKVStorePurely Map.empty
-            & runM
-    normalize p s = do
-      x <- p s
-      return $ snd $ snd x
+    socketListener :: Socket -> IO ()
+    socketListener s = do
+      msg <- recv s 1024
+      unless (S.null msg) $ do
+        resp <- tcpPipe msg
+        sendAll s resp
+        socketListener s
+      
+    tcpPipe :: S.ByteString -> IO S.ByteString
+    tcpPipe s = do
+      effectsResult <- do { serverSetup; resolveTCPRequest s }
+                        & runRequestHandling
+                        & runState Nothing
+                        & runKVStorePurely Map.empty
+                        & runFileReadingIO
+                        & runM
+      return . snd $ snd effectsResult
 
 resolveTCPRequest :: Member RequestHandling r => S.ByteString -> Sem r S.ByteString
 resolveTCPRequest msg = do
         case parseRequest $ C.unpack msg of
             Left response   -> wrap response
-            Right request   -> do
-              response <- resolve request
-              wrap response
+            Right request   -> chain request [resolveRequest, resolveFileRequest]
         where
             wrap :: HTTPResponse -> Sem r S.ByteString
             wrap = pure . C.pack . show
 
-createTCPHandler :: (S.ByteString -> IO S.ByteString) -> Socket -> IO ()
-createTCPHandler handle = listener
-    where
-      listener s = do
-        msg <- recv s 1024
-        unless (S.null msg) $ do
-          resp <- handle msg
-          sendAll s resp
-          listener s
+            chain :: HTTPRequest -> [HTTPRequest -> Sem r (Maybe HTTPResponse)] -> Sem r S.ByteString
+            chain _ [] = wrap Types.Response.badRequestResponse
+            chain req (f:fs) = do
+              x <- f req
+              case x of
+                Nothing -> chain req fs
+                Just r  -> wrap r
 
 runTCPServer :: Maybe HostName -> ServiceName -> (Socket -> IO a) -> IO ()
 runTCPServer mhost port server = withSocketsDo $ do
