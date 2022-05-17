@@ -59,7 +59,7 @@ library
     , bytestring
     , containers
     , network
-    , polysemy
+    , polysemy >=1.6.0.0
     , polysemy-plugin
     , polysemy-zoo >=0.8.0.0
     , test-framework ==0.8.*
@@ -95,7 +95,7 @@ executable ehop-http-server-exe
     , containers
     , ehop-http-server
     , network
-    , polysemy
+    , polysemy >=1.6.0.0
     , polysemy-plugin
     , polysemy-zoo >=0.8.0.0
     , test-framework ==0.8.*
@@ -132,7 +132,7 @@ test-suite ehop-http-server-test
     , containers
     , ehop-http-server
     , network
-    , polysemy
+    , polysemy >=1.6.0.0
     , polysemy-plugin
     , polysemy-zoo >=0.8.0.0
     , test-framework ==0.8.*

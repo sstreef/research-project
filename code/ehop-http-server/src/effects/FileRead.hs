@@ -21,4 +21,6 @@ runFileReadIO = interpret $ \case
     ReadFileContents path -> embed $ P.readFile path <&> C.pack
 
 
-
+runFileReadConstant :: Sem (FileReader : r) a -> Sem r a
+runFileReadConstant = interpret $ \case
+    ReadFileContents _ -> pure $ C.pack "<html><h3 style=\"color:blue;\">Programming with effects</h3></html>"

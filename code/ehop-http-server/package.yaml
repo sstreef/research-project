@@ -58,7 +58,7 @@ dependencies:
 - network
 
 # PolySemy
-- polysemy
+- polysemy >= 1.6.0.0
 - polysemy-plugin
 - polysemy-zoo >= 0.8.0.0
 

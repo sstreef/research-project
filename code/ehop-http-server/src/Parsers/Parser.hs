@@ -1,9 +1,9 @@
 module Parsers.Parser where
 
 import Parsers.Parsing
-import Types.HTTP.Request (MethodType (GET, POST), HTTPRequest (HTTPRequest), RequestHeaders (RequestHeaders, method))
+import Types.HTTP.Request (MethodType (GET, POST), HTTPRequest (HTTPRequest), RequestHeaders (RequestHeaders))
 import Data.List (intercalate)
-import Types.HTTP.General (Payload(Empty, Payload, content, contentLength), ContentType (TextPlain, ApplicationJson, TextHtml))
+import Types.HTTP.General (Payload(Empty, Payload), ContentType (TextPlain, ApplicationJson, TextHtml))
 import Data.Char
 import Types.HTTP.Response (Status (BadRequest), HTTPResponse, createStatusResponse)
 
@@ -23,6 +23,11 @@ urlPathSymbol = char '$'
     <|> intToDigit <$> nat
     <|> lower
     <|> upper
+
+fileSymbol :: Parser Char
+fileSymbol =  char '-'
+    <|> char '_'
+    <|> alphanum
 
 requestSymbol :: Parser Char
 requestSymbol = urlPathSymbol <|> char '\n' <|> char '\r' <|> char ' ' <|> char ':' <|> char '/'
@@ -85,10 +90,6 @@ parseContent = do
     else pure Empty
 
 
--- >>> show $ parseRequest req
--- "Right GET / HTTP/1.0\n\n"
-
-
 parseRequest' :: Parser HTTPRequest
 parseRequest' = do
     m <- parseMethod
@@ -101,3 +102,55 @@ parseRequest :: String -> Either HTTPResponse HTTPRequest
 parseRequest s = case applyParser parseRequest' s of
     (Just (HTTPRequest h pl)) -> Right $ HTTPRequest h pl
     _   -> Left $ createStatusResponse BadRequest
+
+
+data FileDescription = FileDescription {
+    path :: String,
+    name :: String,
+    extension :: Maybe String,
+    contentType :: ContentType }
+    deriving (Show)
+
+
+parsePathLevel :: Parser String
+parsePathLevel = do
+    xs  <- some urlPathSymbol
+    x   <- char '/'
+    pure $ xs ++ [x]
+
+parseFilePath :: Parser String
+parseFilePath = do
+    x  <- char '/'
+    xs  <- many parsePathLevel
+    pure $ x : intercalate "" xs
+
+parseFile' :: Parser FileDescription
+parseFile' = do
+        p <- parseFilePath
+        n <- some fileSymbol
+        extensions <- parseFileExtensions
+
+        let fileDescription = \e t ->  pure $ FileDescription p n e t
+        if null extensions
+            then fileDescription Nothing TextPlain
+            else
+                let ext = last extensions
+                in fileDescription (Just ext) (parseExtension ext)
+
+getFileContentType :: String -> Maybe ContentType
+getFileContentType p = case applyParser parseFile' p of
+    Nothing -> Nothing
+    Just fd -> Just $ contentType fd
+
+
+parseFileExtensions :: Parser [String]
+parseFileExtensions = do
+    many (do
+        _ <- char '.'
+        many alphanum)
+
+parseExtension :: String -> ContentType
+parseExtension = \case
+    "html" -> TextHtml
+    "json" -> ApplicationJson
+    _      -> TextPlain

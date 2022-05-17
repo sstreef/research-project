@@ -1,26 +1,26 @@
 module Effects.RequestHandling where
 
-import Types.HTTP.Request (HTTPRequest, MethodType)
-import Types.HTTP.Response (HTTPResponse, Status(NotFound), createStatusResponse)
+import Types.HTTP.Request (MethodType, getHeaders, RequestHeaders (method, path), HTTPRequest)
+import Types.HTTP.Response (HTTPResponse, Status(NotFound, OK), createStatusResponse, createContentResponse)
 
-import Polysemy ( makeSem, Sem, interpret, Member )
+import Polysemy ( makeSem, Sem, interpret, Members, embed, Embed )
 import Polysemy.KVStore as S (KVStore, writeKV, lookupKV)
 
 import qualified Data.Map.Strict as Map
+import Polysemy.State as State ( State, get, put )
+import Prelude as P
+
+import qualified Control.Exception as E
+import Parsers.Parser (getFileContentType)
 
 
 type HTTPHandler = HTTPRequest -> HTTPResponse
 
-{-
-    Should register http handlers and allow for resolving methods with paths
-
-    Possible TODOs:
-    * Add request forwarding
-    * Add static file handler in resolve (path should be saved in a state)
--}
 data RequestHandling m a where
-    Register    :: MethodType -> String -> HTTPHandler -> RequestHandling m ()
-    Resolve     :: MethodType -> String -> RequestHandling m (Either HTTPResponse HTTPHandler)
+    Register            :: MethodType -> String -> HTTPHandler -> RequestHandling m ()
+    Resolve             :: HTTPRequest -> RequestHandling m HTTPResponse
+    SetStaticFilePath   :: String -> RequestHandling m ()
+    GetStaticFilePath   :: RequestHandling m (Maybe String)
 
 
 makeSem ''RequestHandling
@@ -29,11 +29,28 @@ type HandlerStore = (Map.Map (MethodType, String) HTTPHandler, ())
 
 type HTTPHandlerStore = S.KVStore (MethodType, String) HTTPHandler
 
-runRequestHandling :: Member HTTPHandlerStore r => Sem (RequestHandling : r) a -> Sem r a
+type HTTPStaticFileState = State.State (Maybe String)
+
+runRequestHandling ::   Members [Embed IO, HTTPHandlerStore, HTTPStaticFileState] r =>
+                        Sem (RequestHandling : r) a -> Sem r a
 runRequestHandling = interpret $ \case
     Register m p h  -> S.writeKV (m, p) h
-    (Resolve m p)   -> do
-        (result :: Maybe HTTPHandler) <- S.lookupKV (m, p)
-        pure $ case result of
-           Nothing          -> Left $ createStatusResponse NotFound
-           (Just handler)   -> Right handler
+    Resolve req     -> do
+            (result :: Maybe HTTPHandler) <- S.lookupKV (method headers, requestPath)
+            case result of
+                Just handler -> pure $ handler req
+                Nothing -> do
+                    (filePath :: Maybe String) <- State.get
+                    case filePath of
+                        Nothing -> pure $ createStatusResponse NotFound
+                        Just p -> do
+                            x <-  embed (E.try $ P.readFile $ p ++ requestPath :: IO (Either IOError String))
+                            pure $ case x of
+                              Left _    -> createStatusResponse NotFound
+                              Right c   -> createContentResponse (getFileContentType requestPath) (Just OK) c
+        where
+            headers = getHeaders req
+            requestPath = path headers
+    SetStaticFilePath s -> put $ Just s
+    GetStaticFilePath   -> get
+
