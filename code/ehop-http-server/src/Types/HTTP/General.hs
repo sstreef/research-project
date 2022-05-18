@@ -25,3 +25,8 @@ instance Show Payload where
             '\n' : content p
         ]
 
+parseContentType :: Maybe String -> ContentType
+parseContentType = \case
+    Just "text/html"         -> TextHtml
+    Just "application/json"  -> ApplicationJson
+    _                   -> TextPlain

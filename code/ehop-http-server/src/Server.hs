@@ -34,7 +34,7 @@ runWith port serverSetup = runTCPServer Nothing (fromMaybe "3000" port) socketLi
   where
     socketListener :: Socket -> IO ()
     socketListener s = do
-      msg <- recv s 1024
+      msg <- recv s 1024 -- What happens if user sends > 1024 bytes?
       unless (S.null msg) $ do
         resp <- tcpPipe msg
         sendAll s resp

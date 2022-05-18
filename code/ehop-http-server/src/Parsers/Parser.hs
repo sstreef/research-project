@@ -2,107 +2,116 @@ module Parsers.Parser where
 
 import Parsers.Parsing
 import Types.HTTP.Request (MethodType (GET, POST), HTTPRequest (HTTPRequest), RequestHeaders (RequestHeaders))
-import Data.List (intercalate)
-import Types.HTTP.General (Payload(Empty, Payload), ContentType (TextPlain, ApplicationJson, TextHtml))
-import Data.Char
+import Types.HTTP.General (Payload(Empty, Payload), ContentType (TextPlain, ApplicationJson, TextHtml), parseContentType)
 import Types.HTTP.Response (Status (BadRequest), HTTPResponse, createStatusResponse)
-
--- Custom Parsers
-urlPathSymbol :: Parser Char
-urlPathSymbol = char '$'
-    <|> char '-'
-    <|> char '_'
-    <|> char '.'
-    <|> char '+'
-    <|> char '!'
-    <|> char '*'
-    <|> char '‘'
-    <|> char '('
-    <|> char ')'
-    <|> char ','
-    <|> intToDigit <$> nat
-    <|> lower
-    <|> upper
-
-fileSymbol :: Parser Char
-fileSymbol =  char '-'
-    <|> char '_'
-    <|> alphanum
-
-requestSymbol :: Parser Char
-requestSymbol = urlPathSymbol <|> char '\n' <|> char '\r' <|> char ' ' <|> char ':' <|> char '/'
 
 applyParser :: Parser a -> String -> Maybe a
 applyParser p s = case parse p s of
   [(v, "")] -> Just v
   _ -> Nothing
 
-parseMethod :: Parser MethodType
-parseMethod = do
-        _ <- symbol $ show GET
-        return GET
-    <|> do
-        _ <- symbol $ show POST
-        return POST
+{-
+    Custom Symbol Parsers
+-}
 
-parsePath :: Parser String
-parsePath =do
+extendCharParser :: Parser Char -> [Char] -> Parser Char
+extendCharParser p s = foldr (\x acc -> char x <|> acc) p (s :: [Char])
+
+-- Note: not all symbols are valid at every place in the url
+urlSymbol :: Parser Char
+urlSymbol = extendCharParser alphanum "-._~:/?#[]@!$&'()*+,;%="
+
+fileNameSymbol :: Parser Char
+fileNameSymbol = extendCharParser alphanum "-_"
+
+requestHeaderSymbol :: Parser Char
+requestHeaderSymbol = extendCharParser urlSymbol " :/;=."
+
+{-
+    Request Component Parsers
+-}
+
+requestMethod :: Parser MethodType
+requestMethod = methodParser GET <|> methodParser POST
+    where
+        methodParser :: MethodType -> Parser MethodType
+        methodParser t = do { _ <- symbol $ show t; return t }
+
+requestPath :: Parser String
+requestPath = do
     x   <- char '/'
-    xs  <- many urlPathSymbol
+    xs  <- many urlSymbol
     ys  <- some $ do
             z <- char '/'
-            zs <- some urlPathSymbol
-            pure (z : zs)
+            zs <- some urlSymbol
+            return (z : zs)
         <|> do
             z <- char '/'
-            pure [z]
-    pure (x : xs ++ intercalate "" ys)
+            return [z]
+    return (x : xs ++ concat ys)
     <|> do
     x <- char '/'
-    xs <- many urlPathSymbol
-    pure (x : xs)
+    xs <- many urlSymbol
+    return (x : xs)
 
-parseVersion :: Parser String
-parseVersion = do
+requestProtocolVersion :: Parser String
+requestProtocolVersion = do
     x <- symbol "HTTP/"
     a <- nat
     b <- char '.'
     c <- nat
-    pure $ x ++ (show a ++ b : show c)
+    return $ x ++ (show a ++ b : show c)
 
-parseContent :: Parser Payload
-parseContent = do
-    -- Parse content length
-    _ <- symbol "Content-Length:"
-    l <- nat
-    _ <- some (sat (\c -> c == '\r' || c == '\n'))
-    -- Parse content type
-    _ <- symbol "Content-Type:"
-    t <-    do { _ <- string "text/plain"; pure TextPlain }
-        <|> do { _ <- string "text/html"; pure TextHtml }
-        <|> do { _ <- string "application/json"; pure ApplicationJson }
-    _ <- some (sat (\c -> c == '\r' || c == '\n'))
-    -- Parse content
-    c <- many (sat (const True))
+parseRequestHeader :: Parser (String, String)
+parseRequestHeader = headerEndToken $ do
+    x <- upper
+    xs <- many letter
+    xss <- many (do
+        _ <- char '-'
+        y <- upper
+        ys <- many letter
+        return $ '-' : (y : ys))
+    _ <- char ':'
+    _ <- many $ char ' '
+    val <- some requestHeaderSymbol
+    return (x : xs ++ concat xss, val)
 
-    if length c == l
-    then pure $ Payload l t c
-    else pure Empty
+headerEndToken :: Parser a -> Parser a
+headerEndToken p = do
+    v <- p
+    _ <- char '\r'
+    _ <- char '\n'
+    return v
 
+requestHeaders :: Parser ((MethodType, String, String), [(String, String)])
+requestHeaders = do
+    meta <- headerEndToken $ do
+        a <- requestMethod
+        b <- requestPath
+        c <- requestProtocolVersion
+        return (a, b, c)
+    headers <- many parseRequestHeader
+    return (meta, headers)
 
 parseRequest' :: Parser HTTPRequest
 parseRequest' = do
-    m <- parseMethod
-    p <- parsePath
-    v <- parseVersion
-    _ <- many (sat (const True))
-    pure $ HTTPRequest (RequestHeaders m p v) Empty
+    ((m, x, y), xs) <- requestHeaders
+    contents <- many (sat (const True))
+    pl <- let 
+            cLength = lookup "Content-Length" xs
+            cType = lookup "Content-Type" xs
+        in
+            return $ case cLength of
+                Just i  | m == POST -> 
+                    Payload (read i) (parseContentType cType) contents
+                _ -> Empty
+
+    return $ HTTPRequest (RequestHeaders m x y) pl
 
 parseRequest :: String -> Either HTTPResponse HTTPRequest
 parseRequest s = case applyParser parseRequest' s of
     (Just (HTTPRequest h pl)) -> Right $ HTTPRequest h pl
     _   -> Left $ createStatusResponse BadRequest
-
 
 data FileDescription = FileDescription {
     path :: String,
@@ -112,25 +121,27 @@ data FileDescription = FileDescription {
     deriving (Show)
 
 
-parsePathLevel :: Parser String
-parsePathLevel = do
-    xs  <- some urlPathSymbol
+pathLevel :: Parser String
+pathLevel = do
+    xs  <- some fileNameSymbol
     x   <- char '/'
-    pure $ xs ++ [x]
+    return $ xs ++ [x]
 
-parseFilePath :: Parser String
-parseFilePath = do
+filePath :: Parser String
+filePath = do
     x  <- char '/'
-    xs  <- many parsePathLevel
-    pure $ x : intercalate "" xs
+    xs  <- many pathLevel
+    return (x : concat xs)
 
-parseFile' :: Parser FileDescription
-parseFile' = do
-        p <- parseFilePath
-        n <- some fileSymbol
-        extensions <- parseFileExtensions
+fileExtensions :: Parser [String]
+fileExtensions = many $ do { _ <- char '.'; many alphanum }
 
-        let fileDescription = \e t ->  pure $ FileDescription p n e t
+file :: Parser FileDescription
+file = do
+        p <- filePath
+        n <- some fileNameSymbol
+        extensions <- fileExtensions
+        let fileDescription = \e t ->  return $ FileDescription p n e t
         if null extensions
             then fileDescription Nothing TextPlain
             else
@@ -138,16 +149,9 @@ parseFile' = do
                 in fileDescription (Just ext) (parseExtension ext)
 
 getFileContentType :: String -> Maybe ContentType
-getFileContentType p = case applyParser parseFile' p of
+getFileContentType p = case applyParser file p of
     Nothing -> Nothing
     Just fd -> Just $ contentType fd
-
-
-parseFileExtensions :: Parser [String]
-parseFileExtensions = do
-    many (do
-        _ <- char '.'
-        many alphanum)
 
 parseExtension :: String -> ContentType
 parseExtension = \case
