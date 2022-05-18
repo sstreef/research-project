@@ -27,6 +27,6 @@ instance Show Payload where
 
 parseContentType :: Maybe String -> ContentType
 parseContentType = \case
-    Just "text/html"         -> TextHtml
-    Just "application/json"  -> ApplicationJson
-    _                   -> TextPlain
+    Just "text/html"        -> TextHtml
+    Just "application/json" -> ApplicationJson
+    _                       -> TextPlain

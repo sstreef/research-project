@@ -26,6 +26,8 @@ data HTTPResponse = HTTPResponse ResponseHeaders Payload
 instance Show HTTPResponse where
   show (HTTPResponse headers payload) = show headers ++ show payload
 
+headersFromResponse :: HTTPResponse -> ResponseHeaders
+headersFromResponse (HTTPResponse headers _) = headers
 
 createResponse :: ContentType -> String -> Status -> String -> HTTPResponse
 createResponse type' version' status' content' = HTTPResponse (ResponseHeaders version' status') (Payload (length content') type' content')
