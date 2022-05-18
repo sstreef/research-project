@@ -31,8 +31,8 @@ data HTTPRequest = HTTPRequest RequestHeaders Payload
 instance Show HTTPRequest where
     show (HTTPRequest headers payload) = show headers ++ show payload
 
-getHeaders :: HTTPRequest -> RequestHeaders
-getHeaders (HTTPRequest headers _) = headers
+headersFromRequest :: HTTPRequest -> RequestHeaders
+headersFromRequest (HTTPRequest headers _) = headers
 
 getPayload :: HTTPRequest -> Payload
 getPayload (HTTPRequest _ payload) = payload

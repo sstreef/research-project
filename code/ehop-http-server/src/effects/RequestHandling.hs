@@ -1,18 +1,18 @@
 module Effects.RequestHandling where
 
-import Types.HTTP.Request (MethodType, getHeaders, RequestHeaders (method, path), HTTPRequest)
+import Types.HTTP.Request (MethodType, HTTPRequest)
 import Types.HTTP.Response (HTTPResponse, Status(OK), createContentResponse)
-import qualified Types.HTTP.Response as Types.Response
+import qualified Types.HTTP.Response as HTTP.Response
+import qualified Types.HTTP.Request as HTTP.Request
 
 
 import Polysemy ( makeSem, Sem, interpret, Members )
 import Polysemy.KVStore as Store (KVStore, writeKV, lookupKV)
 
-import qualified Data.Map.Strict as Map
 import Polysemy.State as State ( State, get, put )
 import Prelude as P
 
-import Parsers.Parser (getFileContentType)
+import Parsers.File (getFileContentType)
 import Data.Functor ((<&>))
 import Effects.FileReading (FileReading, readFromFile)
 
@@ -26,36 +26,32 @@ data RequestHandling m a where
     SetStaticFilePath   :: String -> RequestHandling m ()
     GetStaticFilePath   :: RequestHandling m (Maybe String)
 
-
 makeSem ''RequestHandling
-
-type HandlerStore = (Map.Map (MethodType, String) HTTPHandler, ())
 
 type HTTPHandlerStore = Store.KVStore (MethodType, String) HTTPHandler
 
-type HTTPStaticFileState = State.State (Maybe String)
+type HTTPStaticFilePathState = State.State (Maybe String)
 
-runRequestHandling ::   Members [HTTPHandlerStore, HTTPStaticFileState, FileReading] r =>
+runRequestHandling ::   Members [HTTPHandlerStore, HTTPStaticFilePathState, FileReading] r =>
                         Sem (RequestHandling : r) a -> Sem r a
 runRequestHandling = interpret $ \case
-    Register m p h  -> Store.writeKV (m, p) h
-    ResolveRequest request     -> let
-                headers = getHeaders request
+    Register method path handler  -> Store.writeKV (method, path) handler
+    ResolveRequest request     -> 
+            let headers = HTTP.Request.headersFromRequest request 
             in do
-                result <- Store.lookupKV (method headers, path headers)
-                pure (result <&> \f -> f request)
-    ResolveFileRequest request -> let
-                headers = getHeaders request
-                requestPath = path headers
+                result <- Store.lookupKV (HTTP.Request.method headers, HTTP.Request.path headers)
+                pure (result <&> \handler -> handler request)
+    ResolveFileRequest request -> 
+            let headers = HTTP.Request.headersFromRequest request
             in do
-                (filePath :: Maybe String) <- State.get
+                filePath <- State.get
                 case filePath of
-                    Nothing -> pure $ Just Types.Response.notFoundResponse
+                    Nothing -> pure $ Just HTTP.Response.notFoundResponse
                     Just p -> do
-                        x <-  readFromFile $ p ++ requestPath
-                        pure $ Just $ case x of
-                            Nothing    -> Types.Response.notFoundResponse
-                            Just c   -> createContentResponse (getFileContentType requestPath) (Just OK) c
+                        maybeContent <-  readFromFile $ p ++ HTTP.Request.path headers
+                        pure $ Just $ case maybeContent of
+                            Nothing         -> HTTP.Response.notFoundResponse
+                            Just content    -> createContentResponse (getFileContentType (HTTP.Request.path headers)) (Just OK) content
 
 
     SetStaticFilePath s -> put $ Just s

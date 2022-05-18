@@ -27,6 +27,8 @@ library
       Effects.FileReading
       Effects.Logging
       Effects.RequestHandling
+      Parsers.File
+      Parsers.HTTP
       Parsers.Parser
       Parsers.Parsing
       Server

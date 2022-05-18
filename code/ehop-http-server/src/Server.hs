@@ -1,6 +1,6 @@
 module Server ( runWith, ServerSetup ) where
 
-import Effects.RequestHandling (RequestHandling, resolveRequest, resolveFileRequest, runRequestHandling, HTTPHandlerStore, HTTPStaticFileState)
+import Effects.RequestHandling (RequestHandling, resolveRequest, resolveFileRequest, runRequestHandling, HTTPHandlerStore, HTTPStaticFilePathState)
 
 import Network.Socket
 import Control.Monad (unless, forever, void)
@@ -12,7 +12,7 @@ import Polysemy (Member, Sem, runM, Embed)
 import Control.Concurrent (forkFinally)
 import qualified Control.Exception as E
 
-import Parsers.Parser as P ( parseRequest )
+import Parsers.HTTP as P ( parseRequest )
 import Types.HTTP.Response ( HTTPResponse )
 import qualified Types.HTTP.Response as Types.Response
 import Types.HTTP.Request ( HTTPRequest )
@@ -25,7 +25,7 @@ import Data.Maybe ( fromMaybe )
 import Polysemy.State (runState)
 import Effects.FileReading (runFileReadingIO, FileReading)
 
-type ServerSetup = Sem '[RequestHandling, HTTPStaticFileState, HTTPHandlerStore, FileReading, Embed IO]  ()
+type ServerSetup = Sem '[RequestHandling, HTTPStaticFilePathState, HTTPHandlerStore, FileReading, Embed IO]  ()
 
 type Port = String
 
