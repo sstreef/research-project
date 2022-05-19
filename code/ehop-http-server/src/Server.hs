@@ -1,6 +1,6 @@
-module Server ( runWith, ServerSetup ) where
+module Server ( runWith, HTTPServer ) where
 
-import Effects.RequestHandling (RequestHandling, resolveRequest, resolveFileRequest, runRequestHandling, HTTPHandlerStore, HTTPStaticFilePathState)
+import Effects.RequestHandling (RequestHandling, resolveRequest, resolveFileRequest, runRequestHandling, runRequestHandling')
 
 import Prelude hiding (log)
 
@@ -12,31 +12,31 @@ import qualified Data.ByteString as S
 import Data.ByteString.Char8 as C (unpack, pack)
 import Network.Socket.ByteString (recv, sendAll)
 
-import Polysemy (Member, Sem, runM, Embed)
+import Polysemy (Member, Sem, runM)
 import Control.Concurrent (forkFinally)
 import qualified Control.Exception as E
 
 import Parsers.HTTP as P ( parseRequest )
-import Types.HTTP.Response ( HTTPResponse )
+import Types.HTTP.Response ( HTTPResponse, ResponseHeaders (ResponseHeaders) )
 import qualified Types.HTTP.Response as HTTP.Response
-import Types.HTTP.Request ( HTTPRequest )
+import Types.HTTP.Request ( HTTPRequest, RequestHeaders (RequestHeaders) )
 import qualified Types.HTTP.Request as HTTP.Request
 
 
-import qualified Data.Map.Strict as Map
 import Polysemy.KVStore (runKVStorePurely)
 import Data.Function ((&))
 import Data.Maybe ( fromMaybe )
-import Polysemy.State (runState, State)
-import Effects.FileReading (runFileReadingIO, FileReading)
+import Polysemy.State (evalState)
+import Effects.FileReading (runFileReadingIO)
 import Data.Word (Word32)
 import Data.List (intercalate)
+import Data.Functor ((<&>))
 
-type ServerSetup = Sem '[RequestHandling, HTTPStaticFilePathState, HTTPHandlerStore, FileReading, Logging, State String, Embed IO]  ()
+type HTTPServer = Sem '[RequestHandling] ()
 
 type Port = String
 
-runWith :: Maybe Port -> ServerSetup -> IO ()
+runWith :: Maybe Port -> HTTPServer -> IO ()
 runWith port serverSetup = runTCPServer Nothing (fromMaybe "3000" port) socketListener
   where
     socketListener :: Socket -> IO ()
@@ -48,25 +48,26 @@ runWith port serverSetup = runTCPServer Nothing (fromMaybe "3000" port) socketLi
         sendAll s resp
         socketListener s
 
+    stateIO = runRequestHandling' serverSetup
+
     tcpPipe :: Socket -> S.ByteString -> IO S.ByteString
     tcpPipe sock s = do
-      effectsResult <- do { serverSetup; resolveTCPRequest sock s }
-                        & runRequestHandling
-                        & runState Nothing
-                        & runKVStorePurely Map.empty
-                        & runFileReadingIO
-                        & runConsoleLogger
-                        & runState ""
-                        & runM
-      return . snd . snd $ snd effectsResult
+      (store, (state, _)) <- stateIO
+      (_, response)       <- resolveTCPRequest sock s
+        & runRequestHandling
+        & evalState state
+        & runKVStorePurely store
+        & runFileReadingIO
+        & runConsoleLogger
+        & evalState ""
+        & runM
+      return response
 
 resolveTCPRequest :: Member Logging r =>
                     Member RequestHandling r =>
                     Socket -> S.ByteString -> Sem r S.ByteString
 resolveTCPRequest sock msg = do
-        log "From: "
-        logIO $ parseAddrInfo $ getPeerName sock
-        log " | "
+        logIO $ (++ " | ") . ("From :" ++) <$> showSocketIP sock
 
         case parseRequest $ C.unpack msg of
             Left res   -> do
@@ -90,19 +91,18 @@ resolveTCPRequest sock msg = do
 
 runTCPServer :: Maybe HostName -> ServiceName -> (Socket -> IO a) -> IO ()
 runTCPServer mhost port server = withSocketsDo $ do
-    addr <- resolve'
+    addr <- resolve
     putStrLn $ "Server started listening at " ++ fromMaybe "127.0.0.1" mhost ++ ':' : port
     E.bracket (open addr) close loop
   where
-    -- 
-    resolve' :: IO AddrInfo
-    resolve' = do
+    resolve :: IO AddrInfo
+    resolve = do
         let hints = defaultHints {
                 addrFlags = [AI_PASSIVE]
               , addrSocketType = Stream
               }
         head <$> getAddrInfo (Just hints) mhost (Just port)
-    -- 
+
     open :: AddrInfo -> IO Socket
     open addr = do
         sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
@@ -111,50 +111,40 @@ runTCPServer mhost port server = withSocketsDo $ do
         bind sock $ addrAddress addr
         listen sock 1024
         return sock
-    --
+
     loop :: Socket -> IO ()
     loop sock = forever $ do
         (conn, _peer) <- accept sock
         void $ forkFinally (server conn) (const $ gracefulClose conn 5000)
 
 {-
-
 Functions that parse or format logging messages
-
 -}
 
 format :: HTTPRequest -> HTTPResponse -> String
-format req res = let
-    reqHeaders = HTTP.Request.headersFromRequest req
-    resHeaders = HTTP.Response.headersFromResponse res
-    reqS = show (HTTP.Request.method reqHeaders)
-      ++ ' ' : padRight 18 (HTTP.Request.path reqHeaders)
-      ++ ' ' : HTTP.Request.version reqHeaders
-    resS = show (HTTP.Response.status resHeaders)
-      ++ ' ' : HTTP.Response.version resHeaders
+format request response = let
+    (RequestHeaders reqMethod reqPath reqVersion) = HTTP.Request.headersFromRequest request
+    (ResponseHeaders resVersion resStatus) = HTTP.Response.headersFromResponse response
   in
-    "Request: " ++ show reqS ++ "  ==> Response: " ++ show resS
+    "REQ: " ++ show (unwords [ show reqMethod, padRight 18 reqPath, reqVersion ]) ++ " ==> " ++
+    "RES: " ++ show (unwords [ show resStatus, resVersion ])
 
-parseAddrInfo :: IO SockAddr -> IO String
-parseAddrInfo info = do
-  x <- info
-  return $ case x of
-    (SockAddrInet6 _ _ host _) -> showIP host
-    _                       -> "Unknown IP"
+showSocketIP :: Socket -> IO String
+showSocketIP sock = getPeerName sock <&> \case
+    (SockAddrInet6 _ _ host _)  -> showIP host
+    _                           -> "Unknown IP"
   where
     showIP :: (Word32, Word32, Word32, Word32) -> String
     showIP (_, _, _, ip) = intercalate "." $ map (padLeft 3 . show) [d, c, b, a]
-      where
+      where 
         (a, b, c, d) = hostAddressToTuple ip
-        
 
 padLeft :: Int -> [Char] -> [Char]
 padLeft i s = replicate (i - length s) ' ' ++ s
 
 padRight :: Int -> [Char] -> [Char]
-padRight i s = if length result > i 
+padRight i s = if length result > i
   then take (i-3) result ++ "..."
   else result
   where
     result = s ++ replicate (i - length s) ' '
-

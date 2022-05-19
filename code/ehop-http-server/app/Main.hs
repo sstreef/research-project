@@ -1,7 +1,7 @@
 module Main where
 
 import Effects.RequestHandling ( register, setStaticFilePath )
-import Server ( runWith, ServerSetup )
+import Server ( runWith, HTTPServer )
 import Types.HTTP.Response ( createPlainResponse, createJSONResponse, createContentResponse, Status(OK), badRequestResponse )
 import Types.HTTP.Request ( MethodType (GET, POST), getPayload )
 import Types.HTTP.General ( Payload(Payload, Empty) )
@@ -10,7 +10,7 @@ import Types.HTTP.General ( Payload(Payload, Empty) )
 main :: IO ()
 main = runWith (Just "80") server
     where
-        server :: ServerSetup
+        server :: HTTPServer
         server = do
             setStaticFilePath "resources"
             
