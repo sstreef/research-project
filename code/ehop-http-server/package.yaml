@@ -12,7 +12,7 @@ extra-source-files:
 
 ghc-options:
 # Recommended settings for polysemy 
-- -O2
+# - -O2
 - -flate-specialise
 - -fspecialise-aggressively
 - -fplugin=Polysemy.Plugin
@@ -58,12 +58,18 @@ dependencies:
 - network
 
 # PolySemy
-- polysemy
+- polysemy >= 1.6.0.0
 - polysemy-plugin
 - polysemy-zoo >= 0.8.0.0
 
 # Misc
 - bytestring
+- containers
+
+# Testing
+- test-framework >= 0.8 && < 0.9
+- test-framework-quickcheck2 >= 0.3 && < 0.4
+- QuickCheck >= 2.13 && < 2.15
 
 library:
   source-dirs: src
