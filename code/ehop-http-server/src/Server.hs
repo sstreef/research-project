@@ -7,17 +7,17 @@ import Prelude hiding (log)
 import Effects.Logging (Logging, runConsoleLogger, logIO, log, flushLog)
 
 import Network.Socket
-import Control.Monad (unless, forever, void)
+import Control.Monad (forever, void)
 import qualified Data.ByteString as S
 import Data.ByteString.Char8 as C (unpack, pack)
-import Network.Socket.ByteString (recv, sendAll)
+import Network.Socket.ByteString (recv)
 
-import Polysemy (Member, Sem, runM)
+import Polysemy (Member, Sem, runM, Members, Embed (Embed), run, embed)
 import Control.Concurrent (forkFinally)
 import qualified Control.Exception as E
 
 import Parsers.HTTP as P ( parseRequest )
-import Types.HTTP.Response ( HTTPResponse, ResponseHeaders (ResponseHeaders) )
+import Types.HTTP.Response ( HTTPResponse, ResponseHeaders (ResponseHeaders), createPlainResponse, Status (OK) )
 import qualified Types.HTTP.Response as HTTP.Response
 import Types.HTTP.Request ( HTTPRequest, RequestHeaders (RequestHeaders) )
 import qualified Types.HTTP.Request as HTTP.Request
@@ -26,11 +26,14 @@ import qualified Types.HTTP.Request as HTTP.Request
 import Polysemy.KVStore (runKVStorePurely)
 import Data.Function ((&))
 import Data.Maybe ( fromMaybe )
-import Polysemy.State (evalState)
+import Polysemy.State (evalState, runState)
 import Effects.FileReading (runFileReadingIO)
 import Data.Word (Word32)
 import Data.List (intercalate)
 import Data.Functor ((<&>))
+import Effects.Buffering (SocketBuffer, runSocketBuffering, HTTPBuffer (Buffer), BufferMode (MetaBM), HTTPHeaders (Headers), Meta (None), BufferState)
+import Types.HTTP.General (Payload(Empty))
+import qualified Effects.Buffering as SocketBuffer
 
 type HTTPServer = Sem '[RequestHandling] ()
 
@@ -39,29 +42,37 @@ type Port = String
 runWith :: Maybe Port -> HTTPServer -> IO ()
 runWith port serverSetup = runTCPServer Nothing (fromMaybe "3000" port) socketListener
   where
-    socketListener :: Socket -> IO ()
-    socketListener s = do
-      msg <- recv s 1024 -- What happens if user sends > 1024 bytes?
+    socketBufferer :: Members [SocketBuffer, BufferState, Embed IO] r => Sem r ()
+    socketBufferer = do
+      endOfStream <- SocketBuffer.readFromSocket
 
-      unless (S.null msg) $ do
-        resp <- tcpPipe s msg
-        sendAll s resp
-        socketListener s
+      if endOfStream then do
+        SocketBuffer.handle (\_ -> 
+          createPlainResponse (Just OK) "Heyaa!"
+          )
+      else
+        socketBufferer
 
-    stateIO = runRequestHandling' serverSetup
+    socketListener sock = void $ socketBufferer
+                & runSocketBuffering 512 sock -- Amount of bytes to receive per socket request
+                & runState (Buffer MetaBM ("", 0) (Headers None []) Empty)
+                & runM
 
-    tcpPipe :: Socket -> S.ByteString -> IO S.ByteString
-    tcpPipe sock s = do
-      (store, (state, _)) <- stateIO
-      (_, response)       <- resolveTCPRequest sock s
-        & runRequestHandling
-        & evalState state
-        & runKVStorePurely store
-        & runFileReadingIO
-        & runConsoleLogger
-        & evalState ""
-        & runM
-      return response
+
+    -- stateIO = runRequestHandling' serverSetup
+
+    -- tcpPipe :: Socket -> S.ByteString -> IO S.ByteString
+    -- tcpPipe sock s = do
+    --   (store, (state, _)) <- stateIO
+    --   (_, response)       <- resolveTCPRequest sock s
+    --     & runRequestHandling
+    --     & evalState state
+    --     & runKVStorePurely store
+    --     & runFileReadingIO
+    --     & runConsoleLogger
+    --     & evalState ""
+    --     & runM
+    --   return response
 
 resolveTCPRequest :: Member Logging r =>
                     Member RequestHandling r =>
@@ -136,7 +147,7 @@ showSocketIP sock = getPeerName sock <&> \case
   where
     showIP :: (Word32, Word32, Word32, Word32) -> String
     showIP (_, _, _, ip) = intercalate "." $ map (padLeft 3 . show) [d, c, b, a]
-      where 
+      where
         (a, b, c, d) = hostAddressToTuple ip
 
 padLeft :: Int -> [Char] -> [Char]
