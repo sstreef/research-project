@@ -30,8 +30,7 @@ import Polysemy.State (evalState, runState)
 import Effects.FileReading (runFileReadingIO)
 import Data.Word (Word32)
 import Data.List (intercalate)
-import Data.Functor ((<&>))
-import Effects.Buffering (SocketBuffer, runSocketBuffering, HTTPBuffer (Buffer), BufferMode (MetaBM), HTTPHeaders (Headers), Meta (None), BufferState)
+import Effects.Buffering (SocketBuffer, runSocketBuffering, HTTPBuffer (Buffer), BufferMode (MetaBM), HTTPHeaders (Headers), Meta (None), BufferState, HTTPRequest (Request), HTTPBuffer' (HTTPBuffer))
 import Types.HTTP.General (Payload(Empty))
 import qualified Effects.Buffering as SocketBuffer
 
@@ -45,17 +44,17 @@ runWith port serverSetup = runTCPServer Nothing (fromMaybe "3000" port) socketLi
     socketBufferer :: Members [SocketBuffer, BufferState, Embed IO] r => Sem r ()
     socketBufferer = do
       endOfStream <- SocketBuffer.readFromSocket
-
       if endOfStream then do
         SocketBuffer.handle (\_ -> 
           createPlainResponse (Just OK) "Heyaa!"
           )
-      else
+      else do
         socketBufferer
 
     socketListener sock = void $ socketBufferer
-                & runSocketBuffering 512 sock -- Amount of bytes to receive per socket request
-                & runState (Buffer MetaBM ("", 0) (Headers None []) Empty)
+                & runSocketBuffering 32 sock -- Amount of bytes to receive per socket request
+                -- & runState (Buffer MetaBM ("", 0) (Headers None []) Empty)
+                & runState (HTTPBuffer MetaBM "" False (Request (Headers None []) Empty))
                 & runM
 
 
@@ -74,31 +73,31 @@ runWith port serverSetup = runTCPServer Nothing (fromMaybe "3000" port) socketLi
     --     & runM
     --   return response
 
-resolveTCPRequest :: Member Logging r =>
-                    Member RequestHandling r =>
-                    Socket -> S.ByteString -> Sem r S.ByteString
-resolveTCPRequest sock msg = do
-        logIO $ (++ " | ") . ("From :" ++) <$> showSocketIP sock
+-- resolveTCPRequest :: Member Logging r =>
+--                     Member RequestHandling r =>
+--                     Socket -> S.ByteString -> Sem r S.ByteString
+-- resolveTCPRequest sock msg = do
+--         logIO $ (++ " | ") . ("From :" ++) <$> showSocketIP sock
 
-        case parseRequest $ C.unpack msg of
-            Left res   -> do
-              log $ "Request: Invalid Headers ==> Response: " ++ show (HTTP.Response.status $ HTTP.Response.headersFromResponse res)
-              wrap res
-            Right req   -> chain req [resolveRequest, resolveFileRequest]
-        where
-            wrap :: HTTPResponse -> Sem r S.ByteString
-            wrap = pure . C.pack . show
+--         case parseRequest $ C.unpack msg of
+--             Left res   -> do
+--               log $ "Request: Invalid Headers ==> Response: " ++ show (HTTP.Response.status $ HTTP.Response.headersFromResponse res)
+--               wrap res
+--             Right req   -> chain req [resolveRequest, resolveFileRequest]
+--         where
+--             wrap :: HTTPResponse -> Sem r S.ByteString
+--             wrap = pure . C.pack . show
 
-            chain :: Member Logging r => HTTPRequest -> [HTTPRequest -> Sem r (Maybe HTTPResponse)] -> Sem r S.ByteString
-            chain _ [] = wrap HTTP.Response.badRequestResponse
-            chain req (f:fs) = do
-              x <- f req
-              case x of
-                Nothing -> chain req fs
-                Just res  -> do
-                  log $ format req res
-                  flushLog
-                  wrap res
+--             chain :: Member Logging r => HTTPRequest -> [HTTPRequest -> Sem r (Maybe HTTPResponse)] -> Sem r S.ByteString
+--             chain _ [] = wrap HTTP.Response.badRequestResponse
+--             chain req (f:fs) = do
+--               x <- f req
+--               case x of
+--                 Nothing -> chain req fs
+--                 Just res  -> do
+--                   log $ format req res
+--                   flushLog
+--                   wrap res
 
 runTCPServer :: Maybe HostName -> ServiceName -> (Socket -> IO a) -> IO ()
 runTCPServer mhost port server = withSocketsDo $ do
@@ -132,30 +131,30 @@ runTCPServer mhost port server = withSocketsDo $ do
 Functions that parse or format logging messages
 -}
 
-format :: HTTPRequest -> HTTPResponse -> String
-format request response = let
-    (RequestHeaders reqMethod reqPath reqVersion) = HTTP.Request.headersFromRequest request
-    (ResponseHeaders resVersion resStatus) = HTTP.Response.headersFromResponse response
-  in
-    "REQ: " ++ show (unwords [ show reqMethod, padRight 18 reqPath, reqVersion ]) ++ " ==> " ++
-    "RES: " ++ show (unwords [ show resStatus, resVersion ])
+-- format :: HTTPRequest -> HTTPResponse -> String
+-- format request response = let
+--     (RequestHeaders reqMethod reqPath reqVersion) = HTTP.Request.headersFromRequest request
+--     (ResponseHeaders resVersion resStatus) = HTTP.Response.headersFromResponse response
+--   in
+--     "REQ: " ++ show (unwords [ show reqMethod, padRight 18 reqPath, reqVersion ]) ++ " ==> " ++
+--     "RES: " ++ show (unwords [ show resStatus, resVersion ])
 
-showSocketIP :: Socket -> IO String
-showSocketIP sock = getPeerName sock <&> \case
-    (SockAddrInet6 _ _ host _)  -> showIP host
-    _                           -> "Unknown IP"
-  where
-    showIP :: (Word32, Word32, Word32, Word32) -> String
-    showIP (_, _, _, ip) = intercalate "." $ map (padLeft 3 . show) [d, c, b, a]
-      where
-        (a, b, c, d) = hostAddressToTuple ip
+-- showSocketIP :: Socket -> IO String
+-- showSocketIP sock = getPeerName sock <&> \case
+--     (SockAddrInet6 _ _ host _)  -> showIP host
+--     _                           -> "Unknown IP"
+--   where
+--     showIP :: (Word32, Word32, Word32, Word32) -> String
+--     showIP (_, _, _, ip) = intercalate "." $ map (padLeft 3 . show) [d, c, b, a]
+--       where
+--         (a, b, c, d) = hostAddressToTuple ip
 
-padLeft :: Int -> [Char] -> [Char]
-padLeft i s = replicate (i - length s) ' ' ++ s
+-- padLeft :: Int -> [Char] -> [Char]
+-- padLeft i s = replicate (i - length s) ' ' ++ s
 
-padRight :: Int -> [Char] -> [Char]
-padRight i s = if length result > i
-  then take (i-3) result ++ "..."
-  else result
-  where
-    result = s ++ replicate (i - length s) ' '
+-- padRight :: Int -> [Char] -> [Char]
+-- padRight i s = if length result > i
+--   then take (i-3) result ++ "..."
+--   else result
+--   where
+--     result = s ++ replicate (i - length s) ' '
