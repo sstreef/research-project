@@ -8,18 +8,13 @@ import Effects.Logging (Logging, runConsoleLogger, logIO, log, flushLog)
 
 import Network.Socket
 import Control.Monad (forever, void)
-import qualified Data.ByteString as S
-import Data.ByteString.Char8 as C (unpack, pack)
-import Network.Socket.ByteString (recv)
 
 import Polysemy (Member, Sem, runM, Members, Embed (Embed), run, embed)
 import Control.Concurrent (forkFinally)
 import qualified Control.Exception as E
 
-import Parsers.HTTP as P ( parseRequest )
-import Types.HTTP.Response ( HTTPResponse, ResponseHeaders (ResponseHeaders), createPlainResponse, Status (OK) )
+import Types.HTTP.Response ( HTTPResponse )
 import qualified Types.HTTP.Response as HTTP.Response
-import Types.HTTP.Request ( HTTPRequest, RequestHeaders (RequestHeaders) )
 import qualified Types.HTTP.Request as HTTP.Request
 
 
@@ -28,10 +23,9 @@ import Data.Function ((&))
 import Data.Maybe ( fromMaybe )
 import Polysemy.State (evalState, runState)
 import Effects.FileReading (runFileReadingIO)
-import Data.Word (Word32)
-import Data.List (intercalate)
-import Effects.Buffering (SocketBuffer, runSocketBuffering, HTTPBuffer (Buffer), BufferMode (MetaBM), HTTPHeaders (Headers), Meta (None), BufferState, HTTPRequest (Request), HTTPBuffer' (HTTPBuffer))
+import Effects.Buffering (SocketBuffer, runSocketBuffering, HTTPBuffer (HTTPBuffer), BufferMode (MetaBM), HTTPHeaders (Headers), Meta (None), BufferState, HTTPRequest (Request))
 import Types.HTTP.General (Payload(Empty))
+
 import qualified Effects.Buffering as SocketBuffer
 
 type HTTPServer = Sem '[RequestHandling] ()
@@ -45,20 +39,44 @@ runWith port serverSetup = runTCPServer Nothing (fromMaybe "3000" port) socketLi
     socketBufferer = do
       endOfStream <- SocketBuffer.readFromSocket
       if endOfStream then do
-        SocketBuffer.handle (\_ -> 
-          createPlainResponse (Just OK) "Heyaa!"
-          )
+        embed $ print "Finished request"
+        SocketBuffer.handle chain'
       else do
+        embed $ print "Recurse"
         socketBufferer
 
     socketListener sock = void $ socketBufferer
                 & runSocketBuffering 32 sock -- Amount of bytes to receive per socket request
                 -- & runState (Buffer MetaBM ("", 0) (Headers None []) Empty)
-                & runState (HTTPBuffer MetaBM "" False (Request (Headers None []) Empty))
+                & runState (HTTPBuffer MetaBM "" (Request (Headers None []) Empty))
                 & runM
 
+    stateIO = runRequestHandling' serverSetup
 
-    -- stateIO = runRequestHandling' serverSetup
+    chain' :: HTTPRequest -> IO HTTPResponse
+    chain' req = do
+      (store, (state, _)) <- stateIO
+      (_, resp) <- chain req [resolveRequest, resolveFileRequest]
+        & runRequestHandling
+        & evalState state
+        & runKVStorePurely store
+        & runFileReadingIO
+        & runConsoleLogger
+        & evalState ""
+        & runM
+      return resp
+
+    chain ::  Member Logging r =>
+              HTTPRequest -> [HTTPRequest -> Sem r (Maybe HTTPResponse)] -> Sem r HTTPResponse
+    chain _ [] = return HTTP.Response.badRequestResponse
+    chain req (f:fs) = do
+      x <- f req
+      case x of
+        Nothing -> chain req fs
+        Just res  -> do
+          -- log $ format req res
+          -- flushLog
+          return res
 
     -- tcpPipe :: Socket -> S.ByteString -> IO S.ByteString
     -- tcpPipe sock s = do

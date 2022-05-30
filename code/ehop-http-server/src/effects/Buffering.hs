@@ -36,29 +36,24 @@ data BufferMode = MetaBM | HeadersBM | BodyBM | ErrorBM | FinalBM
 data HTTPBuffer = HTTPBuffer {
     bufferMode :: BufferMode,
     bufferedBytes :: String,
-    isFinalChunk :: Bool,
     bufferedRequest :: HTTPRequest
-}
-    deriving Show
+} deriving Show
 
-hModeBuffer = HTTPBuffer HeadersBM
-mModeBuffer = HTTPBuffer MetaBM
-bModeBuffer = HTTPBuffer BodyBM
-eModeBuffer = HTTPBuffer ErrorBM
-fModeBuffer = HTTPBuffer FinalBM
+getContentInfo :: HTTPHeaders -> [Header]
+getContentInfo (Headers _ xs) = xs
 
 setBufferMode :: BufferMode -> HTTPBuffer -> HTTPBuffer
-setBufferMode m (HTTPBuffer _ b ifc req) = HTTPBuffer m b ifc req
+setBufferMode m (HTTPBuffer _ b req) = HTTPBuffer m b req
 
 appendBytesToBuffer :: String -> HTTPBuffer -> HTTPBuffer
-appendBytesToBuffer b' (HTTPBuffer m b ifc req) = HTTPBuffer m (b ++ b') ifc req
+appendBytesToBuffer b' (HTTPBuffer m b req) = HTTPBuffer m (b ++ b') req
 
 type BufferState = State HTTPBuffer
 
 data SocketBuffer m a where
     -- Appends a ByteString to the buffer
     ReadFromSocket  :: SocketBuffer m Bool
-    Handle          :: (HTTPRequest -> HTTPResponse) -> SocketBuffer m ()
+    Handle          :: (HTTPRequest -> IO HTTPResponse) -> SocketBuffer m ()
 
 makeSem ''SocketBuffer
 
@@ -71,89 +66,88 @@ runSocketBuffering ::   Member (Embed IO) r =>
 runSocketBuffering bytesToRead sock = interpret $ \case
     ReadFromSocket  -> do
         newBytes        <- embed (C.unpack <$> recv sock bytesToRead)
+        embed $ putStrLn $ "NewBytes: " ++ show (length newBytes)
         buffer          <- appendBytesToBuffer newBytes <$> get
-        consumedBuffer  <- fsm buffer
+        consumedBuffer  <- consume buffer
         put consumedBuffer
-        return $ length newBytes < bytesToRead
-        where
-            fsm :: Member (Embed IO) r => HTTPBuffer -> Sem r HTTPBuffer
-            fsm buffer = do
-                embed $ print $ bufferMode buffer
-                let
-                    handlers = [(MetaBM, consumeMeta), (HeadersBM, consumeHeaders), (BodyBM, consumeBody)]
-                    mode = bufferMode buffer
-                    in case lookup (bufferMode buffer) handlers of
-                        Nothing         -> return buffer
-                        Just consume    ->
-                            let buffer' = consume buffer
-                            in if bufferMode buffer' == mode
-                                then return buffer'
-                                else fsm buffer'
-
+        -- This check is currently bugging (suspecting to be coming from parsing ByteString to String but not to UTF-8)
+        -- return $ length newBytes < bytesToRead
+        let mode = bufferMode consumedBuffer
+        return $ mode == FinalBM || mode == ErrorBM || null newBytes
     Handle f       -> do
-        (HTTPBuffer mode bytes _ (Request headers payload)) <- get
-        embed $ sendAll sock $ case mode of
-            BodyBM                  -> wrap $ f (Request headers payload)
-            FinalBM | null bytes    -> wrap $ f (Request headers payload)
-            _       -> wrap Types.HTTPResponse.badRequestResponse
-
-        where
-            wrap = C.pack . show
+        (HTTPBuffer mode bytes (Request headers payload)) <- get
+        embed $ print $ "Handled buffer: Bytes=\"" ++ bytes ++ "\", mode=" ++ show mode
+        resp <- case mode of
+            FinalBM | null bytes    -> embed $ f (Request headers payload)
+            _                       -> return Types.HTTPResponse.badRequestResponse
+        embed . sendAll sock . C.pack . show $ resp
 
 -- Effect helpers
 
 type BufferTransformer = HTTPBuffer -> HTTPBuffer
 
+
+consume :: Member (Embed IO) r => HTTPBuffer -> Sem r HTTPBuffer
+consume buffer = do
+    embed $ print $ "FSM ::\t" ++ show (bufferMode buffer) ++ " => " ++ show (bufferMode buffer')
+    if mode == bufferMode buffer'
+        then return buffer'
+        else consume buffer'
+    where
+        mode = bufferMode buffer
+        buffer' = (case mode of
+            MetaBM      -> consumeMeta
+            HeadersBM   -> consumeHeaders
+            BodyBM      -> consumeBody
+            _           -> id) buffer
+
 consumeMeta :: BufferTransformer
-consumeMeta (HTTPBuffer _ bytes ifc (Request _ payload)) =
+consumeMeta (HTTPBuffer _ bytes (Request _ payload)) =
     case P.parse parseMeta bytes of
-        [(headers', bytes')]    -> hModeBuffer bytes' ifc (Request headers' payload)
-        _                       -> mModeBuffer bytes ifc (Request (Headers None []) payload)
+        [(headers', bytes')]    -> HTTPBuffer HeadersBM bytes' (Request headers' payload)
+        _                       -> HTTPBuffer MetaBM bytes (Request (Headers None []) payload)
 
 consumeHeaders :: BufferTransformer
-consumeHeaders (HTTPBuffer _ bytes ifc (Request (Headers meta oldHs) payload)) = case P.parse headerParser bytes of
+consumeHeaders (HTTPBuffer _ bytes (Request (Headers meta oldHs) payload)) = case P.parse headerParser bytes of
     [(hs, remainder)]   -> case P.parse consumeCRLF remainder of
-        [(_, remainder')]   -> bModeBuffer remainder' ifc (Request (Headers meta (oldHs++hs)) payload)
-        _                   -> hModeBuffer remainder ifc (Request (Headers meta (oldHs++hs)) payload)
-    _                   -> hModeBuffer bytes ifc (Request (Headers meta oldHs) payload)
+        [(_, remainder')]   -> HTTPBuffer BodyBM remainder' (Request (Headers meta (oldHs++hs)) payload)
+        _                   -> HTTPBuffer HeadersBM remainder (Request (Headers meta (oldHs++hs)) payload)
+    _                   -> HTTPBuffer HeadersBM bytes (Request (Headers meta oldHs) payload)
 
 consumeBody :: BufferTransformer
-consumeBody (HTTPBuffer _ bytes ifc (Request (Headers meta hs) payload)) =
+consumeBody (HTTPBuffer _ bytes (Request (Headers meta hs) payload)) =
     case payload of
         Payload l' t' c'    -> case P.parse bodyParser bytes of
-            [(c, bytes')]   -> case combineContents c' c l' of
-                Left _          -> errorBuffer
-                Right s         -> bModeBuffer bytes' ifc (Request (Headers meta hs) (Payload l' t' s))
+            [(c, bytes')]   -> case c' ++ c of
+                s | length s > l'   -> errorBuffer
+                s | length s == l'  -> HTTPBuffer FinalBM bytes' (Request (Headers meta hs) (Payload l' t' s))
+                s                   -> HTTPBuffer BodyBM bytes' (Request (Headers meta hs) (Payload l' t' s))
             _               -> errorBuffer
         Empty               -> case (lookup "Content-Length" hs, lookup "Content-Type" hs) of
             (Just l', t')  -> case P.parse bodyParser bytes of
                 [(c, bytes')]       -> let l = read l' :: Int
-                    in if (length c < l && not ifc) || (length c == l && ifc)
-                        then bModeBuffer bytes' ifc (Request (Headers meta hs) (Payload l (parseContentType t') c))
+                    in if (length c < l) || (length c == l)
+                        then HTTPBuffer BodyBM bytes' (Request (Headers meta hs) (Payload l (parseContentType t') c))
                         else errorBuffer
                 _                   -> errorBuffer
-            _                   -> fModeBuffer bytes ifc (Request (Headers meta hs) Empty)
+            _                   -> HTTPBuffer FinalBM bytes (Request (Headers meta hs) Empty)
 
     where
-        combineContents :: String -> String -> Int -> Either String String
-        combineContents a b l = let c = a ++ b
-            in if (length c < l && not ifc) || (length c == l && ifc) then Right c else Left c
 
-        errorBuffer = eModeBuffer bytes ifc (Request (Headers meta hs) payload)
+        errorBuffer = HTTPBuffer ErrorBM bytes (Request (Headers meta hs) payload)
 
 bodyParser :: Parser String
 bodyParser =  many (sat (const True))
 
 headerParser :: Parser [(String, String)]
-headerParser = do P.many parseRequestHeader
+headerParser = P.many parseRequestHeader
 
 consumeCRLF :: Parser ()
-consumeCRLF = void $ P.string "\r\n"
+consumeCRLF = void (P.string "\r\n")
 
 parseMeta :: Parser HTTPHeaders
-parseMeta = do
-    headerEndToken $ do
+parseMeta = headerEndToken $ do
         a <- requestMethod
         b <- requestPath
         c <- requestProtocolVersion
-        return $ Headers (Meta a b c) []
+        return (Headers (Meta a b c) [])

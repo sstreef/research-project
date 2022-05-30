@@ -1,6 +1,6 @@
 module Effects.RequestHandling where
 
-import Types.HTTP.Request (MethodType (GET), HTTPRequest, RequestHeaders (RequestHeaders))
+import Types.HTTP.Request (MethodType (GET))
 import Types.HTTP.Response (HTTPResponse, Status(OK), createContentResponse)
 import qualified Types.HTTP.Response as HTTP.Response
 import qualified Types.HTTP.Request as HTTP.Request
@@ -17,6 +17,7 @@ import Data.Functor ((<&>))
 import Effects.FileReading (FileReading, readFromFile, runFileReadingIO)
 import qualified Data.Map as Map
 import Data.Function ( (&) )
+import Effects.Buffering (HTTPRequest (Request), HTTPHeaders (Headers), Meta (Meta))
 
 
 type HTTPHandler = HTTPRequest -> HTTPResponse
@@ -41,12 +42,12 @@ runRequestHandling ::   Members [HTTPHandlerStore, HTTPStaticFilePathState, File
 runRequestHandling = interpret $ \case
     Register method path handler  -> Store.writeKV (method, path) handler
     ResolveRequest request     ->
-            let (RequestHeaders method path _) = HTTP.Request.headersFromRequest request
+            let (Request (Headers (Meta method path _) _) _) = request
             in do
                 maybeHandler <- Store.lookupKV (method, path)
                 return $ maybeHandler <&> \handler -> handler request
     ResolveFileRequest request ->
-            let (RequestHeaders method path _)  = HTTP.Request.headersFromRequest request
+            let (Request (Headers (Meta method path _) _) _)  = request
             in case method of
                 GET -> do
                     response <- State.get <&> \case
