@@ -8,6 +8,7 @@ import qualified Types.HTTP.Response as B
 import qualified Types.HTTP.Request as A
 
 import Parsers.Parser
+import Parsers.HTTP (requestPath)
 
 main :: IO ()
 main = defaultMain tests
@@ -22,8 +23,8 @@ prop_show_response_headers = show responseHeaders'== "HTTP/1.0 200 OK\n"
 prop_show_http_response = show (B.HTTPResponse responseHeaders' payload')
     == "HTTP/1.0 200 OK\nContent-Length: 2\nContent-Type: text/plain\n\nHi\n"
 
-prop_parse_http_request_path_root = applyParser parsePath "/" == Just "/"
-prop_parse_http_request_path_correct_nested = applyParser parsePath "/hello/world" == Just "/hello/world"
+prop_parse_http_request_path_root = apply requestPath "/" == Just "/"
+prop_parse_http_request_path_correct_nested = apply requestPath "/hello/world" == Just "/hello/world"
 
 tests :: [Test]
 tests = [
