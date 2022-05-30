@@ -2,7 +2,7 @@ module Parsers.File where
 
 import Parsers.Parser (fileNameSymbol, apply)
 import Parsers.Parsing
-import Types.HTTP.General (ContentType (TextPlain, TextHtml, ApplicationJson))
+import HTTP.General (ContentType (TextPlain, TextHtml, ApplicationJson))
 
 data FileDescription = FileDescription {
     path :: String,

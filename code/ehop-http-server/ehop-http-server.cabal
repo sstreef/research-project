@@ -24,17 +24,18 @@ source-repository head
 
 library
   exposed-modules:
+      Effects.Buffering
       Effects.FileReading
       Effects.Logging
       Effects.RequestHandling
+      HTTP.General
+      HTTP.Request
+      HTTP.Response
       Parsers.File
       Parsers.HTTP
       Parsers.Parser
       Parsers.Parsing
       Server
-      Types.HTTP.General
-      Types.HTTP.Request
-      Types.HTTP.Response
   other-modules:
       Paths_ehop_http_server
   hs-source-dirs:
