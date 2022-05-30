@@ -1,10 +1,10 @@
 module Parsers.HTTP where
 
 import Parsers.Parsing
-import Types.HTTP.Request (MethodType (GET, POST), HTTPRequest (HTTPRequest), RequestHeaders (RequestHeaders))
-import Types.HTTP.General (Payload(Empty, Payload), parseContentType)
-import Types.HTTP.Response (HTTPResponse)
-import qualified Types.HTTP.Response as HTTP.Response
+import HTTP.Request (MethodType (GET, POST), HTTPRequest (Request), HTTPHeaders (Headers), Meta (Meta))
+import HTTP.General (Payload(Empty, Payload), parseContentType)
+import HTTP.Response (HTTPResponse)
+import qualified HTTP.Response
 
 import Parsers.Parser as P (extendCharParser, apply)
 
@@ -92,7 +92,7 @@ request = do
                     Payload (read i) (parseContentType cType) contents
                 _ -> Empty
 
-    return $ HTTPRequest (RequestHeaders m x y) pl
+    return $ Request (Headers (Meta m x y) []) pl
 
 parseRequest :: String -> Either HTTPResponse HTTPRequest
 parseRequest s = case P.apply request s of

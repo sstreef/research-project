@@ -2,33 +2,18 @@ module Effects.Buffering where
 
 import Network.Socket (Socket)
 
-import Polysemy (makeSem, Sem, interpret, Member, Embed, embed)
+import Polysemy (makeSem, Sem, interpret, Member, Embed, embed, runM, raiseUnder2)
 import Network.Socket.ByteString (recv, sendAll)
-import Polysemy.State (State, get, put)
-import Types.HTTP.Request (MethodType)
-import Types.HTTP.General (Payload (Empty, Payload), parseContentType)
+import Polysemy.State (State, get, put, runState)
+import HTTP.Request (HTTPRequest (Request), HTTPHeaders (Headers), Meta (None, Meta))
+import HTTP.General (Payload (Empty, Payload), parseContentType)
 import Parsers.HTTP (parseRequestHeader, headerEndToken, requestMethod, requestPath, requestProtocolVersion)
 import qualified Data.ByteString.Char8 as C
 import Parsers.Parsing as P (many, Parser, string, parse, sat)
 import Control.Monad (void)
-import qualified Types.HTTP.Response as Types.HTTPResponse
-import Types.HTTP.Response ( HTTPResponse )
-
-
-data Meta =  Meta {
-        method      :: MethodType,
-        path        :: String,
-        version     :: String
-    } | None
-    deriving Show
-
-type Header = (String, String)
-
-data HTTPHeaders = Headers Meta [Header]
-    deriving Show
-
-data HTTPRequest = Request HTTPHeaders Payload
-    deriving Show
+import qualified HTTP.Response as HTTPResponse
+import HTTP.Response ( HTTPResponse )
+import Data.Function ((&))
 
 data BufferMode = MetaBM | HeadersBM | BodyBM | ErrorBM | FinalBM
     deriving (Show, Eq)
@@ -39,16 +24,8 @@ data HTTPBuffer = HTTPBuffer {
     bufferedRequest :: HTTPRequest
 } deriving Show
 
-getContentInfo :: HTTPHeaders -> [Header]
-getContentInfo (Headers _ xs) = xs
-
-setBufferMode :: BufferMode -> HTTPBuffer -> HTTPBuffer
-setBufferMode m (HTTPBuffer _ b req) = HTTPBuffer m b req
-
 appendBytesToBuffer :: String -> HTTPBuffer -> HTTPBuffer
 appendBytesToBuffer b' (HTTPBuffer m b req) = HTTPBuffer m (b ++ b') req
-
-type BufferState = State HTTPBuffer
 
 data SocketBuffer m a where
     -- Appends a ByteString to the buffer
@@ -57,39 +34,43 @@ data SocketBuffer m a where
 
 makeSem ''SocketBuffer
 
-wrapRemainder :: Foldable t => t a -> (t a, Int)
-wrapRemainder s = (s, length s)
-
 runSocketBuffering ::   Member (Embed IO) r =>
-                        Member BufferState r =>
+                        Member (State HTTPBuffer) r =>
                         Int -> Socket -> Sem (SocketBuffer : r) a -> Sem r a
 runSocketBuffering bytesToRead sock = interpret $ \case
     ReadFromSocket  -> do
         newBytes        <- embed (C.unpack <$> recv sock bytesToRead)
-        embed $ putStrLn $ "NewBytes: " ++ show (length newBytes)
         buffer          <- appendBytesToBuffer newBytes <$> get
         consumedBuffer  <- consume buffer
         put consumedBuffer
-        -- This check is currently bugging (suspecting to be coming from parsing ByteString to String but not to UTF-8)
-        -- return $ length newBytes < bytesToRead
         let mode = bufferMode consumedBuffer
-        return $ mode == FinalBM || mode == ErrorBM || null newBytes
+        return (mode == FinalBM || mode == ErrorBM || null newBytes)
     Handle f       -> do
         (HTTPBuffer mode bytes (Request headers payload)) <- get
-        embed $ print $ "Handled buffer: Bytes=\"" ++ bytes ++ "\", mode=" ++ show mode
         resp <- case mode of
             FinalBM | null bytes    -> embed $ f (Request headers payload)
-            _                       -> return Types.HTTPResponse.badRequestResponse
+            _                       -> return HTTPResponse.badRequestResponse
         embed . sendAll sock . C.pack . show $ resp
+
+{-
+    Raises the SocketBuffer effect with all required effects
+-}
+raiseSocketBufferEffect :: Sem (SocketBuffer : r) a -> Sem (SocketBuffer : State HTTPBuffer : Embed IO : r) a
+raiseSocketBufferEffect = raiseUnder2 @(State HTTPBuffer) @(Embed IO) @SocketBuffer
+
+evalSocketBuffering :: Sem '[SocketBuffer] a -> Int -> Socket -> IO ()
+evalSocketBuffering f i sock = raiseSocketBufferEffect f
+      & runSocketBuffering i sock
+      & runState (HTTPBuffer MetaBM "" (Request (Headers None []) Empty))
+      & runM
+      & void
 
 -- Effect helpers
 
 type BufferTransformer = HTTPBuffer -> HTTPBuffer
 
-
 consume :: Member (Embed IO) r => HTTPBuffer -> Sem r HTTPBuffer
 consume buffer = do
-    embed $ print $ "FSM ::\t" ++ show (bufferMode buffer) ++ " => " ++ show (bufferMode buffer')
     if mode == bufferMode buffer'
         then return buffer'
         else consume buffer'
@@ -133,7 +114,6 @@ consumeBody (HTTPBuffer _ bytes (Request (Headers meta hs) payload)) =
             _                   -> HTTPBuffer FinalBM bytes (Request (Headers meta hs) Empty)
 
     where
-
         errorBuffer = HTTPBuffer ErrorBM bytes (Request (Headers meta hs) payload)
 
 bodyParser :: Parser String

@@ -1,6 +1,6 @@
-module Types.HTTP.Response where
+module HTTP.Response where
     
-import Types.HTTP.General (Payload (Payload), ContentType (TextPlain, TextHtml, ApplicationJson))
+import HTTP.General (Payload (Payload), ContentType (TextPlain, TextHtml, ApplicationJson))
 import Data.Maybe (fromMaybe)
     
 data Status = OK | BadRequest | NotFound | InternalServerError | MethodNotAllowed

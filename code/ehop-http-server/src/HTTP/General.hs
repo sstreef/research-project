@@ -1,4 +1,4 @@
-module Types.HTTP.General where
+module HTTP.General where
 
 data ContentType = TextPlain | TextHtml | ApplicationJson
     deriving Eq
