@@ -50,7 +50,7 @@ runSocketBuffering bytesToRead sock = interpret $ \case
         resp <- case mode of
             FinalBM | null bytes    -> embed $ f (Request headers payload)
             _                       -> return HTTPResponse.badRequestResponse
-        embed . sendAll sock . C.pack . show $ resp
+        embed $ sendAll sock $ C.pack $ show resp
 
 {-
     Raises the SocketBuffer effect with all required effects
@@ -70,7 +70,7 @@ evalSocketBuffering f i sock = raiseSocketBufferEffect f
 type BufferTransformer = HTTPBuffer -> HTTPBuffer
 
 consume :: Member (Embed IO) r => HTTPBuffer -> Sem r HTTPBuffer
-consume buffer = do
+consume buffer =
     if mode == bufferMode buffer'
         then return buffer'
         else consume buffer'
