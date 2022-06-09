@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Parsers.File where
 
 import Parsers.Parser (fileNameSymbol, apply)

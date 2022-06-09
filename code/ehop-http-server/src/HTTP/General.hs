@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module HTTP.General where
 
 data ContentType = TextPlain | TextHtml | ApplicationJson

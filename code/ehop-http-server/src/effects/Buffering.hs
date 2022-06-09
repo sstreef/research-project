@@ -1,3 +1,8 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ExplicitForAll #-}
 module Effects.Buffering where
 
 import Network.Socket (Socket)
@@ -56,7 +61,8 @@ runSocketBuffering bytesToRead sock = interpret $ \case
     Raises the SocketBuffer effect with all required effects
 -}
 raiseSocketBufferEffect :: Sem (SocketBuffer : r) a -> Sem (SocketBuffer : State HTTPBuffer : Embed IO : r) a
-raiseSocketBufferEffect = raiseUnder2 @(State HTTPBuffer) @(Embed IO) @SocketBuffer
+-- raiseSocketBufferEffect = raiseUnder2 @(State HTTPBuffer) @(Embed IO) @SocketBuffer
+raiseSocketBufferEffect = undefined
 
 evalSocketBuffering :: Sem '[SocketBuffer] a -> Int -> Socket -> IO ()
 evalSocketBuffering f i sock = raiseSocketBufferEffect f

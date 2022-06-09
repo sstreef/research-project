@@ -40,6 +40,8 @@ extra-deps:
 - constraints-0.12@sha256:7edf1e72a92d0a6761da634f08be9123dfcc0dcec11c269cbf465a09721c3481,2322
 # - polysemy-1.7.1.0@sha256:3ead7a332abd70b202920ed3bf2e36866de163f821e643adfdcc9d39867b8033,5977
 - polysemy-1.6.0.0@sha256:29a73b1bf3d0049b12041016b7ee25e76bd8f6e99f9c37c2dde2b46368246697,6184 
+
+- hflags-0.4.3@sha256:f6b85fc7cbd170787f49225646e62d5589e5dd75abe6f26d16287e5fff3e678e,3121
 # - acme-missiles-0.3
 # - git: https://github.com/commercialhaskell/stack.git
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
