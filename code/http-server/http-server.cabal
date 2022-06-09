@@ -6,14 +6,13 @@ cabal-version: 1.12
 
 name:           http-server
 version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/githubuser/http-server#readme>
-homepage:       https://github.com/githubuser/http-server#readme
-bug-reports:    https://github.com/githubuser/http-server/issues
-author:         Author name here
-maintainer:     example@example.com
-copyright:      2022 Author name here
-license:        BSD3
-license-file:   LICENSE
+description:    Please see the README on GitHub at <https://github.com/sstreef/research-project/tree/main/code/http-server>
+homepage:       https://github.com/sstreef/research-project#readme
+bug-reports:    https://github.com/sstreef/research-project/issues
+author:         Sam Streef
+maintainer:     s.l.streef@student.tudelft.nl
+copyright:      2022 Sam Streef
+license:        OtherLicense
 build-type:     Simple
 extra-source-files:
     README.md
@@ -21,11 +20,18 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/http-server
+  location: https://github.com/sstreef/research-project
 
 library
   exposed-modules:
-      Lib
+      HTTP.General
+      HTTP.Request
+      HTTP.Response
+      Parsers.File
+      Parsers.HTTP
+      Parsers.Parser
+      Parsers.Parsing
+      Server
   other-modules:
       Paths_http_server
   hs-source-dirs:
