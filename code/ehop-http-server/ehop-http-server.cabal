@@ -24,10 +24,6 @@ source-repository head
 
 library
   exposed-modules:
-      Effects.Buffering
-      Effects.FileReading
-      Effects.Logging
-      Effects.RequestHandling
       HTTP.General
       HTTP.Request
       HTTP.Response
