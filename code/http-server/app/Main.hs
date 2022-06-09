@@ -1,6 +1,6 @@
 module Main where
-
--- import Server ( runWith )
+    
+import Server (runWith)
 
 main :: IO ()
-main = undefined 
+main = runWith Nothing [] 

@@ -3,21 +3,43 @@ module Server ( runWith ) where
 import Prelude hiding (log)
 
 import Network.Socket
-import Control.Monad (forever, void)
+import Control.Monad (forever, void, unless)
 
 import Control.Concurrent (forkFinally)
 
 import qualified Control.Exception as E
 import Data.Maybe (fromMaybe)
+import HTTP.Request (HTTPRequest, MethodType)
+import HTTP.Response (HTTPResponse, createPlainResponse, Status (OK))
+import Network.Socket.ByteString ( recv, sendAll )
+import qualified Data.ByteString as S
+import qualified Data.ByteString.Char8 as C
+import Debug.Trace
 
+type Handler = HTTPRequest -> HTTPResponse
 
 type Port = String
 
--- runWith port serverSetup = runTCPServer Nothing (fromMaybe "3000" port)
-runWith port serverSetup = undefined 
+runWith :: Maybe String -> [((MethodType, String), Handler)] -> IO ()
+runWith port serverSetup = runTCPServer Nothing (fromMaybe "3000" port) handleSocket
+  where
+    handleSocket :: Socket -> IO ()
+    handleSocket sock = stateRec sock ""
+      where
+        bytesToRead = 16
+
+        stateRec :: Socket -> String -> IO ()
+        stateRec sock s = do
+          msg <- recv sock bytesToRead
+          unless (S.null msg || C.length msg < bytesToRead) $ do
+            stateRec sock (s ++ C.unpack msg)
+          print s
+          sendAll sock $ C.pack $ show $ createPlainResponse (Just OK) "Hello World!"
 
 
-runTCPServer :: Maybe HostName -> ServiceName -> (Socket -> IO a) -> IO ()
+
+
+runTCPServer :: Maybe HostName -> ServiceName -> (Socket -> IO ()) -> IO ()
 runTCPServer mhost port server = withSocketsDo $ do
     addr <- resolve
     putStrLn $ "Server started listening at " ++ fromMaybe "127.0.0.1" mhost ++ ':' : port
