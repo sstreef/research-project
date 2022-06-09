@@ -1,3 +1,7 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DataKinds #-}
 module Effects.RequestHandling where
 
 import HTTP.Request (MethodType (GET), HTTPRequest, HTTPHeaders (Headers), Meta (Meta), getHeaders)
@@ -67,8 +71,9 @@ runRequestHandling = interpret $ \case
 -}
 raiseRequestHandlingEffect :: Sem (RequestHandling : r) a
   -> Sem (RequestHandling : HTTPStaticFilePathState : HTTPHandlerStore : FileReading : Embed IO : r) a
-raiseRequestHandlingEffect = raiseUnder3 @HTTPStaticFilePathState @HTTPHandlerStore @FileReading @RequestHandling
-  . raiseUnder @(Embed IO) @RequestHandling
+-- raiseRequestHandlingEffect = raiseUnder3 @HTTPStaticFilePathState @HTTPHandlerStore @FileReading @RequestHandling
+--   . raiseUnder @(Embed IO) @RequestHandling
+raiseRequestHandlingEffect = undefined
 
 {-
     Runs the request handling effect with automatically raising the required effects to it.

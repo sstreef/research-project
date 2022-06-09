@@ -1,3 +1,7 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DataKinds #-}
 module Effects.Logging where
 
 import Polysemy (makeSem, Sem, interpret, Embed, embed, Members)
@@ -50,4 +54,3 @@ runFileLogger = interpret $ \case
         s <- embed a
         (acc, file) <- get
         put (acc ++ show s, file)
-        
