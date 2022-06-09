@@ -9,33 +9,49 @@ import Control.Concurrent (forkFinally)
 
 import qualified Control.Exception as E
 import Data.Maybe (fromMaybe)
-import HTTP.Request (HTTPRequest, MethodType)
-import HTTP.Response (HTTPResponse, createPlainResponse, Status (OK))
+import HTTP.Request (HTTPRequest (Request), MethodType, HTTPHeaders (Headers), Meta (Meta, None), getHeaders, getMeta)
+import HTTP.Response (HTTPResponse (HTTPResponse), createPlainResponse, Status (OK, NotFound), createStatusResponse, badRequestResponse, notFoundResponse)
 import Network.Socket.ByteString ( recv, sendAll )
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as C
 import Debug.Trace
+import Parsers.HTTP
+import Data.Functor ((<&>))
+import Data.Either (fromLeft)
 
 type Handler = HTTPRequest -> HTTPResponse
 
 type Port = String
 
-runWith :: Maybe String -> [((MethodType, String), Handler)] -> IO ()
-runWith port serverSetup = runTCPServer Nothing (fromMaybe "3000" port) handleSocket
+runWith :: Maybe String -> [((MethodType, String), Handler)] -> Maybe String -> IO ()
+-- runWith port handlers staticFilePath = runTCPServer Nothing (fromMaybe "3000" port) handleSocket
+runWith port handlers staticFilePath = runTCPServer Nothing (fromMaybe "3000" port) createSocketHandler
   where
-    handleSocket :: Socket -> IO ()
-    handleSocket sock = stateRec sock ""
-      where
-        bytesToRead = 16
+    bytesToRead = 128
 
-        stateRec :: Socket -> String -> IO ()
-        stateRec sock s = do
-          msg <- recv sock bytesToRead
-          unless (S.null msg || C.length msg < bytesToRead) $ do
-            stateRec sock (s ++ C.unpack msg)
-          print s
-          sendAll sock $ C.pack $ show $ createPlainResponse (Just OK) "Hello World!"
+    logRequest :: HTTPRequest -> IO ()
+    logRequest (Request (Headers (Meta m p v) _) _) = putStrLn (show m ++ " " ++ p ++ " " ++ v ++ "1")
+    logRequest _ = putStrLn "Invalid request"
 
+    lookupRequestHandler :: (MethodType, String) -> Maybe Handler
+    lookupRequestHandler key = lookup key handlers 
+
+    handleRequest :: String -> IO HTTPResponse
+    handleRequest s = return $ fromMaybe notFoundResponse $ 
+      case parseRequest s of
+        Left  res -> Just res
+        Right req -> (getMeta req >>= lookupRequestHandler) <*> Just req
+
+    createSocketHandler :: Socket -> IO ()
+    createSocketHandler = bufferedSocketHandle ""
+
+    bufferedSocketHandle :: String -> Socket -> IO ()
+    bufferedSocketHandle buffer sock = do
+          msg <- recv sock bytesToRead <&> C.unpack
+
+          if null msg || length msg < bytesToRead
+            then handleRequest buffer >>= sendAll sock . C.pack . show
+            else bufferedSocketHandle (buffer ++ msg) sock
 
 
 
