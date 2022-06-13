@@ -2,7 +2,7 @@ module Parsers.HTTP where
 
 import Parsers.Parsing
 import HTTP.Request (MethodType (GET, POST), HTTPRequest (Request), HTTPHeaders (Headers), Meta (Meta, None))
-import HTTP.General (Payload(Empty, Payload), parseContentType)
+import HTTP.General (Payload(Empty, Payload), parseContentType, ContentType)
 import HTTP.Response (HTTPResponse)
 import qualified HTTP.Response
 
@@ -11,7 +11,8 @@ import Parsers.Parser as P (extendCharParser, apply)
 import Control.Monad.State
 import qualified Control.Applicative as P
 import qualified Parsers.Parsing as P
-
+import qualified Data.ByteString as S
+import qualified Data.ByteString.Char8 as C
 {- Custom -}
 
 urlSymbol :: Parser Char
@@ -131,18 +132,17 @@ type BufferState' = (String, BufferMode, HTTPRequest)
 
 type BufferState = State BufferState' BufferValue
 
-addBytes :: String -> BufferState
-addBytes bytes' = do
-    (bytes, mode, request) <- get
-    put (bytes ++ bytes', mode, request)
+addBytes :: S.ByteString -> BufferState
+addBytes newBytes = do
+    (str, mode, request) <- get
+    put (str ++ C.unpack newBytes, mode, request)
     return request
-
 
 emptyRequest :: HTTPRequest
 emptyRequest = Request (Headers None []) Empty
 
 emptyState :: BufferState'
-emptyState = ("POST / HTTP/1.0\r\nContent-Length: 12\r\nContent-Type: text/plain\r\n\r\nHello World!", ParsingMeta, emptyRequest)
+emptyState = ("", ParsingMeta, emptyRequest)
 
 consume :: BufferState
 consume = do
@@ -151,14 +151,11 @@ consume = do
         ParsingMeta     -> consumeMeta
         ParsingHeaders  -> consumeHeaders
         ParsingBody     -> consumeBody
-        _           -> return request
+        _               -> return request
     (_, mode', request') <- get
-    if mode == mode' then return request' else consume
-
-res = execState consume emptyState
-
--- >>> show res
--- "(\"\",ParsingBody,Request (Headers (Meta {method = POST, path = \"/\", version = \"HTTP/1.0\"}) [(\"Content-Length\",\"12\"),(\"Content-Type\",\"text/plain\")]) Content-Length: 12\nContent-Type: text/plain\n\nHello World!\n)"
+    if mode == mode'
+        then return request'
+        else consume
 
 getBufferStateValue :: BufferState
 getBufferStateValue = do
@@ -186,21 +183,18 @@ consumeHeaders = do
 consumeBody :: BufferState
 consumeBody = do
     (bytes, mode, Request (Headers meta headers) payload) <- get
-    let errorState = (bytes, ParsingError, Request (Headers meta headers) payload)
+    let resolveParseResult = bodyParserResolver (bytes, ParsingError, Request (Headers meta headers) payload) (Headers meta headers) bytes
     put $ case payload of
-        Payload l' t' c'    -> case P.parse bodyParser bytes of
-            [(c, bytes')]   -> case c' ++ c of
-                s | length s > l'   -> errorState
-                s | length s == l'  -> (bytes', ParsingFinished, Request (Headers meta headers) (Payload l' t' s))
-                s                   -> (bytes', ParsingBody, Request (Headers meta headers) (Payload l' t' s))
-            _               -> errorState
+        Payload l' t' c'    -> resolveParseResult (c' ++) l' t'
         Empty               -> case (lookup "Content-Length" headers, lookup "Content-Type" headers) of
-            (Just l', t')  -> case P.parse bodyParser bytes of
-                [(c, bytes')]       -> let l = read l' :: Int
-                    in if (length c < l) || (length c == l)
-                        then (bytes', ParsingBody, Request (Headers meta headers) (Payload l (parseContentType t') c))
-                        else errorState
-                _                   -> errorState
+            (Just l', t')       -> resolveParseResult id (read l') (parseContentType t')
             _                   -> (bytes, ParsingFinished, Request (Headers meta headers) Empty)
     getBufferStateValue
 
+bodyParserResolver :: BufferState' -> HTTPHeaders -> String -> (String -> String) -> Int -> ContentType -> BufferState'
+bodyParserResolver errorState headers bytes combine contentLength contentType = case P.parse bodyParser bytes of
+    [(c, bytes')]   -> case combine c of
+        content | length content == contentLength   -> (bytes', ParsingFinished, Request headers (Payload contentLength contentType content))
+        content | length content <  contentLength   -> (bytes', ParsingBody, Request headers (Payload contentLength contentType content))
+        content                                     -> errorState
+    _               -> errorState

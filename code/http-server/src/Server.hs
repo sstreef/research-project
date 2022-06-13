@@ -14,46 +14,51 @@ import HTTP.Response (HTTPResponse (HTTPResponse), createPlainResponse, Status (
 import Network.Socket.ByteString ( recv, sendAll )
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as C
-import Debug.Trace
 import Parsers.HTTP
 import Data.Functor ((<&>))
 import Data.Either (fromLeft)
+import HTTP.General (Payload(Empty))
+import Control.Monad.State (execState)
 
 type Handler = HTTPRequest -> HTTPResponse
 
 type Port = String
 
 runWith :: Maybe String -> [((MethodType, String), Handler)] -> Maybe String -> IO ()
--- runWith port handlers staticFilePath = runTCPServer Nothing (fromMaybe "3000" port) handleSocket
 runWith port handlers staticFilePath = runTCPServer Nothing (fromMaybe "3000" port) createSocketHandler
   where
     bytesToRead = 128
 
     logRequest :: HTTPRequest -> IO ()
-    logRequest (Request (Headers (Meta m p v) _) _) = putStrLn (show m ++ " " ++ p ++ " " ++ v ++ "1")
+    logRequest (Request (Headers (Meta m p v) _) _) = putStrLn (show m ++ " " ++ p ++ " " ++ v)
     logRequest _ = putStrLn "Invalid request"
+
+    createSocketHandler :: Socket -> IO () 
+    createSocketHandler  = bufferedSocketHandle (return emptyRequest)
 
     lookupRequestHandler :: (MethodType, String) -> Maybe Handler
     lookupRequestHandler key = lookup key handlers 
 
-    handleRequest :: String -> IO HTTPResponse
-    handleRequest s = return $ fromMaybe notFoundResponse $ 
-      case parseRequest s of
-        Left  res -> Just res
-        Right req -> (getMeta req >>= lookupRequestHandler) <*> Just req
+    handleRequest :: BufferState -> IO HTTPResponse
+    handleRequest state = 
+      let (_, mode, request) = execState state emptyState
+      in do 
+        logRequest request
+        return $ case mode of
+          ParsingFinished -> case getMeta request >>= lookupRequestHandler of
+            Just handler    -> handler request
+            Nothing         -> notFoundResponse
+          _             -> badRequestResponse
 
-    createSocketHandler :: Socket -> IO ()
-    createSocketHandler = bufferedSocketHandle ""
+    bufferedSocketHandle :: BufferState -> Socket ->  IO ()
+    bufferedSocketHandle oldState sock = do
+      bytes <- recv sock bytesToRead
 
-    bufferedSocketHandle :: String -> Socket -> IO ()
-    bufferedSocketHandle buffer sock = do
-          msg <- recv sock bytesToRead <&> C.unpack
-
-          if null msg || length msg < bytesToRead
-            then handleRequest buffer >>= sendAll sock . C.pack . show
-            else bufferedSocketHandle (buffer ++ msg) sock
-
-
+      let newState = do { oldState; addBytes bytes; consume }
+      
+      if S.null bytes || S.length bytes < bytesToRead
+            then handleRequest newState >>= sendAll sock . C.pack . show
+            else bufferedSocketHandle newState sock
 
 runTCPServer :: Maybe HostName -> ServiceName -> (Socket -> IO ()) -> IO ()
 runTCPServer mhost port server = withSocketsDo $ do
