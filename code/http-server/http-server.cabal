@@ -41,6 +41,7 @@ library
     , base >=4.7 && <5
     , bytestring
     , containers
+    , mtl
     , network
     , test-framework ==0.8.*
     , test-framework-quickcheck2 ==0.3.*
@@ -59,6 +60,7 @@ executable http-server-exe
     , bytestring
     , containers
     , http-server
+    , mtl
     , network
     , test-framework ==0.8.*
     , test-framework-quickcheck2 ==0.3.*
@@ -78,6 +80,7 @@ test-suite http-server-test
     , bytestring
     , containers
     , http-server
+    , mtl
     , network
     , test-framework ==0.8.*
     , test-framework-quickcheck2 ==0.3.*
