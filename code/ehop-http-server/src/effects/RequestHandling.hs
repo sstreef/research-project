@@ -9,7 +9,7 @@ import HTTP.Response (HTTPResponse)
 import qualified HTTP.Response
 
 
-import Polysemy ( makeSem, Sem, interpret, Members, Embed, runM, raiseUnder, raiseUnder3 )
+import Polysemy ( makeSem, Sem, interpret, Members, Embed, runM, raiseUnder3, raiseUnder2 )
 import Polysemy.KVStore as Store (KVStore, writeKV, lookupKV, runKVStorePurely)
 
 import Polysemy.State as State ( State, get, put, runState )
@@ -19,6 +19,8 @@ import Data.Functor ((<&>))
 import Effects.FileReading (FileReading, readFromFile, runFileReadingIO)
 import qualified Data.Map as Map
 import Data.Function ( (&) )
+import qualified Effects.Logging as Logging
+import Effects.Logging (Logging, runConsoleLogger)
 
 
 type HTTPHandler = HTTPRequest -> IO HTTPResponse
@@ -38,19 +40,21 @@ type HTTPHandlerStore = Store.KVStore (MethodType, String) HTTPHandler
 
 type HTTPStaticFilePathState = State.State (Maybe String)
 
-runRequestHandling ::   Members [HTTPHandlerStore, HTTPStaticFilePathState, FileReading] r =>
+runRequestHandling ::   Members [HTTPHandlerStore, HTTPStaticFilePathState, FileReading, Logging] r =>
                         Sem (RequestHandling : r) a -> Sem r a
 runRequestHandling = interpret $ \case
     Register method path handler  -> Store.writeKV (method, path) handler
     ResolveRequest request ->
         case getMeta request of
             Just key    -> do
+                            Logging.log (show (fst key) ++ " " ++ snd key)
                             handler <- Store.lookupKV key
                             return (handler <*> Just request)
             Nothing     ->  return $ Just $ pure HTTP.Response.badRequestResponse
-    ResolveFileRequest request  -> 
+    ResolveFileRequest request  ->
         case getMeta request of
             Just (GET, path)    -> do
+                        Logging.log ("GET " ++ path)
                         (staticFilePath :: Maybe String) <- State.get
                         case staticFilePath of
                             Just rootPath -> readFromFile rootPath path <&> Just
@@ -66,17 +70,24 @@ runRequestHandling = interpret $ \case
     Raises the RequestHandling effect with all required effects
 -}
 raiseRequestHandlingEffect :: Sem (RequestHandling : r) a
-  -> Sem (RequestHandling : HTTPStaticFilePathState : HTTPHandlerStore : FileReading : Embed IO : r) a
+    -> Sem
+     (RequestHandling
+        : HTTPStaticFilePathState : HTTPHandlerStore : FileReading
+        : Logging : Embed IO : r)
+     a
 raiseRequestHandlingEffect = raiseUnder3 @HTTPStaticFilePathState @HTTPHandlerStore @FileReading @RequestHandling
-  . raiseUnder @(Embed IO) @RequestHandling
+  . raiseUnder2 @Logging @(Embed IO) @RequestHandling
 
 {-
     Runs the request handling effect with automatically raising the required effects to it.
 -}
-evalRequestHandling :: Sem '[RequestHandling] () -> IO (HTTPHandlerMap, (Maybe String, ()))
+-- evalRequestHandling :: Sem '[RequestHandling] () -> IO (HTTPHandlerMap, (Maybe String, ()))
+evalRequestHandling :: Sem '[RequestHandling] a
+    -> IO (HTTPHandlerMap, (Maybe String, a))
 evalRequestHandling setup = raiseRequestHandlingEffect setup
-  & runRequestHandling
-  & runState Nothing
-  & runKVStorePurely (Map.empty :: HTTPHandlerMap)
-  & runFileReadingIO
-  & runM
+    & runRequestHandling
+    & runState Nothing
+    & runKVStorePurely Map.empty
+    & runFileReadingIO
+    & runConsoleLogger
+    & runM

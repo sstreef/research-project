@@ -26,11 +26,11 @@ import Effects.RequestHandling
     ( RequestHandling,
       resolveRequest,
       resolveFileRequest,
-      runRequestHandling,
-      evalRequestHandling )
+      runRequestHandling, raiseRequestHandlingEffect )
 
 import qualified Effects.Buffering as SocketBuffer
 import qualified Control.Exception as E
+import qualified Data.Map as Map
 
 type HTTPServer = Sem '[RequestHandling] ()
 
@@ -47,17 +47,16 @@ runWith port serverSetup = runTCPServer Nothing (fromMaybe "3000" port) (evalSoc
       else socketBufferer
     
     resolve :: HTTPRequest -> IO HTTPResponse
-    resolve req = do
-      (store, (state, _)) <- evalRequestHandling serverSetup
-      (_, resp) <- chain req [resolveRequest, resolveFileRequest]
+    resolve req = (do
+          raiseRequestHandlingEffect serverSetup
+          chain req [resolveRequest, resolveFileRequest])
         & runRequestHandling
-        & evalState state
-        & runKVStorePurely store
+        & evalState Nothing
+        & runKVStorePurely Map.empty
         & runFileReadingIO
         & runConsoleLogger
-        & evalState ""
         & runM
-      resp
+        >>= snd
       where
         chain ::  HTTPRequest -> [HTTPRequest -> Sem r (Maybe (IO HTTPResponse))] -> Sem r (IO HTTPResponse)
         chain _ [] = return $ return HTTP.Response.notFoundResponse
