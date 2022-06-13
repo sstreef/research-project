@@ -1,0 +1,19 @@
+{
+    "persons": [
+        {
+            "name": "Bob",
+            "age": 37,
+            "favFruits": [ "Banana", "Apple", "Strawberry" ]
+        },
+        {
+            "name": "Alice",
+            "age": 21,
+            "favFruits": [ "Pineapple", "Coconut" ]
+        },
+        {
+            "name": "Maurice",
+            "age": 42,
+            "favFruits": [ "Coconut", "Apple", "Raspberry" ]
+        }
+    ]
+}
