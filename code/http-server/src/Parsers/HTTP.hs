@@ -7,12 +7,12 @@ import HTTP.Response (HTTPResponse)
 import qualified HTTP.Response
 
 import Parsers.Parser as P (extendCharParser, apply)
-
-import Control.Monad.State
-import qualified Control.Applicative as P
 import qualified Parsers.Parsing as P
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as C
+import Control.Monad.State
+
+
 {- Custom -}
 
 urlSymbol :: Parser Char
@@ -87,12 +87,12 @@ request :: Parser HTTPRequest
 request = do
     ((m, x, y), xs) <- requestHeaders
     contents <- many (sat (const True))
-    pl <- let
+    pl <- let 
             cLength = lookup "Content-Length" xs
             cType = lookup "Content-Type" xs
         in
             return $ case cLength of
-                Just i  | m == POST ->
+                Just i  | m == POST -> 
                     Payload (read i) (parseContentType cType) contents
                 _ -> Empty
 
@@ -126,7 +126,6 @@ parseMeta = headerEndToken $ do
 data BufferMode = ParsingMeta | ParsingHeaders | ParsingBody | ParsingError | ParsingFinished
     deriving (Show, Eq)
 
-
 type BufferValue = HTTPRequest
 type BufferState' = (String, BufferMode, HTTPRequest)
 
@@ -134,9 +133,9 @@ type BufferState = State BufferState' BufferValue
 
 addBytes :: S.ByteString -> BufferState
 addBytes newBytes = do
-    (str, mode, request) <- get
-    put (str ++ C.unpack newBytes, mode, request)
-    return request
+    (str, mode, req) <- get
+    put (str ++ C.unpack newBytes, mode, req)
+    return req
 
 emptyRequest :: HTTPRequest
 emptyRequest = Request (Headers None []) Empty
@@ -146,12 +145,12 @@ emptyState = ("", ParsingMeta, emptyRequest)
 
 consume :: BufferState
 consume = do
-    (_, mode, request) <- get
-    case mode of
+    (_, mode, req) <- get
+    _ <- case mode of
         ParsingMeta     -> consumeMeta
         ParsingHeaders  -> consumeHeaders
         ParsingBody     -> consumeBody
-        _               -> return request
+        _               -> return req
     (_, mode', request') <- get
     if mode == mode'
         then return request'
@@ -159,8 +158,8 @@ consume = do
 
 getBufferStateValue :: BufferState
 getBufferStateValue = do
-    (_, _, request) <- get
-    return request
+    (_, _, req) <- get
+    return req
 
 consumeMeta :: BufferState
 consumeMeta = do
@@ -172,7 +171,7 @@ consumeMeta = do
 
 consumeHeaders :: BufferState
 consumeHeaders = do
-    (bytes, mode, Request (Headers meta oldHeaders) payload) <- get
+    (bytes, _, Request (Headers meta oldHeaders) payload) <- get
     put $ case P.parse headerParser bytes of
         [(headers, remainder)]  -> case P.parse consumeCRLF remainder of
             [(_, remainder')]       -> (remainder', ParsingBody, Request (Headers meta (oldHeaders++headers)) payload)
@@ -182,7 +181,7 @@ consumeHeaders = do
 
 consumeBody :: BufferState
 consumeBody = do
-    (bytes, mode, Request (Headers meta headers) payload) <- get
+    (bytes, _, Request (Headers meta headers) payload) <- get
     let resolveParseResult = bodyParserResolver (bytes, ParsingError, Request (Headers meta headers) payload) (Headers meta headers) bytes
     put $ case payload of
         Payload l' t' c'    -> resolveParseResult (c' ++) l' t'
@@ -196,5 +195,5 @@ bodyParserResolver errorState headers bytes combine contentLength contentType = 
     [(c, bytes')]   -> case combine c of
         content | length content == contentLength   -> (bytes', ParsingFinished, Request headers (Payload contentLength contentType content))
         content | length content <  contentLength   -> (bytes', ParsingBody, Request headers (Payload contentLength contentType content))
-        content                                     -> errorState
+        _                                           -> errorState
     _               -> errorState
