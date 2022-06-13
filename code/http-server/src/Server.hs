@@ -63,8 +63,8 @@ runWith port handlers staticFilePath = runTCPServer Nothing (fromMaybe "3000" po
             then handleRequest newState >>= sendAll sock . C.pack . show
             else bufferedSocketHandle newState sock
 
-
 {- Helpers for server function -}
+
 readFromFile :: String -> String -> IO HTTPResponse
 readFromFile rootPath path = do
   (eitherErrorOrString :: Either IOError String) <- E.try $ readFile (rootPath ++ path)

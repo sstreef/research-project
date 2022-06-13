@@ -37,3 +37,7 @@ getPayload (Request _ payload) = payload
 
 getContentInfo :: HTTPHeaders -> [Header]
 getContentInfo (Headers _ xs) = xs
+
+getMeta :: HTTPRequest -> Maybe (MethodType, String)
+getMeta (Request (Headers (Meta m p _) _) _) = Just (m, p)
+getMeta _ = Nothing

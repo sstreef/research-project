@@ -23,6 +23,11 @@ import Effects.Buffering ( SocketBuffer, evalSocketBuffering )
 import Effects.FileReading ( runFileReadingIO )
 import Effects.Logging (runConsoleLogger)
 import Effects.RequestHandling
+    ( RequestHandling,
+      resolveRequest,
+      resolveFileRequest,
+      runRequestHandling,
+      evalRequestHandling )
 
 import qualified Effects.Buffering as SocketBuffer
 import qualified Control.Exception as E
@@ -37,10 +42,10 @@ runWith port serverSetup = runTCPServer Nothing (fromMaybe "3000" port) (evalSoc
     socketBufferer :: Members '[SocketBuffer] r => Sem r ()
     socketBufferer = do
       endOfStream <- SocketBuffer.readFromSocket
-      if endOfStream 
+      if endOfStream
       then SocketBuffer.handle resolve
       else socketBufferer
-
+    
     resolve :: HTTPRequest -> IO HTTPResponse
     resolve req = do
       (store, (state, _)) <- evalRequestHandling serverSetup
@@ -52,13 +57,15 @@ runWith port serverSetup = runTCPServer Nothing (fromMaybe "3000" port) (evalSoc
         & runConsoleLogger
         & evalState ""
         & runM
-      return resp
+      resp
       where
-        chain ::  HTTPRequest -> [HTTPRequest -> Sem r (Maybe HTTPResponse)] -> Sem r HTTPResponse
-        chain _ [] = return HTTP.Response.badRequestResponse
+        chain ::  HTTPRequest -> [HTTPRequest -> Sem r (Maybe (IO HTTPResponse))] -> Sem r (IO HTTPResponse)
+        chain _ [] = return $ return HTTP.Response.notFoundResponse
         chain request (f:fs) = f request >>= \case
           Nothing       -> chain request fs
           Just response -> return response
+
+{- Boilerplate code from the Network library -}
 
 runTCPServer :: Maybe HostName -> ServiceName -> (Socket -> IO a) -> IO ()
 runTCPServer mhost port server = withSocketsDo $ do

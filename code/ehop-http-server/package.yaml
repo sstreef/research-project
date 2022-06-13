@@ -12,7 +12,7 @@ extra-source-files:
 
 ghc-options:
 # Recommended settings for polysemy 
-- -O2
+# - -O2
 - -flate-specialise
 - -fspecialise-aggressively
 - -fplugin=Polysemy.Plugin
@@ -65,6 +65,7 @@ dependencies:
 # Misc
 - bytestring
 - containers
+- mtl
 
 # Testing
 - test-framework >= 0.8 && < 0.9

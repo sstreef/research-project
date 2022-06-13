@@ -24,6 +24,10 @@ source-repository head
 
 library
   exposed-modules:
+      Effects.Buffering
+      Effects.FileReading
+      Effects.Logging
+      Effects.RequestHandling
       HTTP.General
       HTTP.Request
       HTTP.Response
@@ -57,6 +61,7 @@ library
     , base >=4.7 && <5
     , bytestring
     , containers
+    , mtl
     , network
     , polysemy >=1.6.0.0
     , polysemy-plugin
@@ -93,6 +98,7 @@ executable ehop-http-server-exe
     , bytestring
     , containers
     , ehop-http-server
+    , mtl
     , network
     , polysemy >=1.6.0.0
     , polysemy-plugin
@@ -130,6 +136,7 @@ test-suite ehop-http-server-test
     , bytestring
     , containers
     , ehop-http-server
+    , mtl
     , network
     , polysemy >=1.6.0.0
     , polysemy-plugin
