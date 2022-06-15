@@ -30,7 +30,7 @@ type Port = String
 runWith :: Maybe String -> [((MethodType, String), Handler)] -> Maybe String -> IO ()
 runWith port handlers staticFilePath = runTCPServer Nothing (fromMaybe "3000" port) createSocketHandler
   where
-    bytesToRead = 128
+    bytesToRead = 512
 
     createSocketHandler :: Socket -> IO ()
     createSocketHandler  = bufferedSocketHandle (return emptyRequest)
@@ -73,7 +73,7 @@ readFromFile rootPath path = do
     Left _        -> HTTP.Response.notFoundResponse
 
 logRequest :: HTTPRequest -> IO ()
-logRequest (Request (Headers (Meta m p v) _) _) = putStrLn (show m ++ " " ++ p ++ " " ++ v)
+logRequest (Request (Headers (Meta m p v) _) _) = print (show m ++ " " ++ p ++ " " ++ v)
 logRequest _ = putStrLn "Invalid request"
 
 {- Boilerplate code from the Network library -}

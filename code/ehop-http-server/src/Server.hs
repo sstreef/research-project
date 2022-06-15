@@ -37,7 +37,7 @@ type HTTPServer = Sem '[RequestHandling] ()
 type Port = String
 
 runWith :: Maybe Port -> HTTPServer -> IO ()
-runWith port serverSetup = runTCPServer Nothing (fromMaybe "3000" port) (evalSocketBuffering socketBufferer 256)
+runWith port serverSetup = runTCPServer Nothing (fromMaybe "3000" port) (evalSocketBuffering socketBufferer 512)
   where
     socketBufferer :: Members '[SocketBuffer] r => Sem r ()
     socketBufferer = do
