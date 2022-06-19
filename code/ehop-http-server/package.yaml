@@ -81,8 +81,9 @@ executables:
     source-dirs:         app
     ghc-options:
     - -threaded
+    # - -prof
     - -rtsopts
-    - -with-rtsopts=-N
+    # - -with-rtsopts=-N
     dependencies:
     - ehop-http-server
 

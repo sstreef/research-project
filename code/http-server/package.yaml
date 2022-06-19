@@ -44,7 +44,7 @@ executables:
     - -threaded
     - -prof
     - -rtsopts
-    - -with-rtsopts=-h
+    # - -with-rtsopts=-h
     dependencies:
     - http-server
 

@@ -91,7 +91,7 @@ executable ehop-http-server-exe
       GeneralizedNewtypeDeriving
       DeriveGeneric
       OverloadedStrings
-  ghc-options: -flate-specialise -fspecialise-aggressively -fplugin=Polysemy.Plugin -Wall -Wcompat -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -flate-specialise -fspecialise-aggressively -fplugin=Polysemy.Plugin -Wall -Wcompat -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns -threaded -rtsopts
   build-depends:
       QuickCheck >=2.13 && <2.15
     , base >=4.7 && <5
