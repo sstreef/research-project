@@ -10,11 +10,7 @@ import Parsers.Parser as P (extendCharParser, apply)
 import qualified Parsers.Parsing as P
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as C
-import Polysemy.State (State, get, put)
-import Polysemy (Sem, Members)
-import Control.Monad (void)
-import Control.Monad.Except (unless)
-
+import Control.Monad.State
 
 
 {- Custom -}
@@ -130,40 +126,50 @@ parseMeta = headerEndToken $ do
 data BufferMode = ParsingMeta | ParsingHeaders | ParsingBody | ParsingError | ParsingFinished
     deriving (Show, Eq)
 
-type BufferStateValues = (String, BufferMode, HTTPRequest)
+type BufferValue = HTTPRequest
+type BufferState' = (String, BufferMode, HTTPRequest)
 
-type BufferState = State BufferStateValues
+type BufferState = State BufferState' BufferValue
 
-addBytes :: Members '[BufferState] r =>  S.ByteString -> Sem r ()
+addBytes :: S.ByteString -> BufferState
 addBytes newBytes = do
     (str, mode, req) <- get
     put (str ++ C.unpack newBytes, mode, req)
+    return req
 
 emptyRequest :: HTTPRequest
 emptyRequest = Request (Headers None []) Empty
 
-emptyState :: BufferStateValues
+emptyState :: BufferState'
 emptyState = ("", ParsingMeta, emptyRequest)
 
-consume :: Members '[BufferState] r => Sem r ()
+consume :: BufferState
 consume = do
-    (_, mode, _) <- get
+    (_, mode, req) <- get
     _ <- case mode of
         ParsingMeta     -> consumeMeta
         ParsingHeaders  -> consumeHeaders
         ParsingBody     -> consumeBody
-        _               -> return ()
-    (_, mode', _) <- get
-    unless (mode == mode') consume
+        _               -> return req
+    (_, mode', request') <- get
+    if mode == mode'
+        then return request'
+        else consume
 
-consumeMeta :: Members '[BufferState] r => Sem r ()
+getBufferStateValue :: BufferState
+getBufferStateValue = do
+    (_, _, req) <- get
+    return req
+
+consumeMeta :: BufferState
 consumeMeta = do
     (bytes, _, Request _ payload) <- get
     put $ case P.parse parseMeta bytes of
         [(headers', bytes')]    -> (bytes', ParsingHeaders, Request headers' payload)
         _                       -> (bytes, ParsingMeta, Request (Headers None []) payload)
+    getBufferStateValue
 
-consumeHeaders :: Members '[BufferState] r => Sem r ()
+consumeHeaders :: BufferState
 consumeHeaders = do
     (bytes, _, Request (Headers meta oldHeaders) payload) <- get
     put $ case P.parse headerParser bytes of
@@ -171,8 +177,9 @@ consumeHeaders = do
             [(_, remainder')]       -> (remainder', ParsingBody, Request (Headers meta (oldHeaders++headers)) payload)
             _                       -> (remainder, ParsingHeaders, Request (Headers meta (oldHeaders++headers)) payload)
         _                       -> (bytes, ParsingHeaders, Request (Headers meta oldHeaders) payload)
+    getBufferStateValue
 
-consumeBody :: Members '[BufferState] r => Sem r ()
+consumeBody :: BufferState
 consumeBody = do
     (bytes, _, Request (Headers meta headers) payload) <- get
     let resolveParseResult = bodyParserResolver (bytes, ParsingError, Request (Headers meta headers) payload) (Headers meta headers) bytes
@@ -181,8 +188,9 @@ consumeBody = do
         Empty               -> case (lookup "Content-Length" headers, lookup "Content-Type" headers) of
             (Just l', t')       -> resolveParseResult id (read l') (parseContentType t')
             _                   -> (bytes, ParsingFinished, Request (Headers meta headers) Empty)
+    getBufferStateValue
 
-bodyParserResolver :: BufferStateValues -> HTTPHeaders -> String -> (String -> String) -> Int -> ContentType -> BufferStateValues
+bodyParserResolver :: BufferState' -> HTTPHeaders -> String -> (String -> String) -> Int -> ContentType -> BufferState'
 bodyParserResolver errorState headers bytes combine contentLength contentType = case P.parse bodyParser bytes of
     [(c, bytes')]   -> case combine c of
         content | length content == contentLength   -> (bytes', ParsingFinished, Request headers (Payload contentLength contentType content))
