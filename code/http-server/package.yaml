@@ -42,8 +42,9 @@ executables:
     source-dirs:         app
     ghc-options:
     - -threaded
+    - -prof
     - -rtsopts
-    - -with-rtsopts=-N
+    - -with-rtsopts=-h
     dependencies:
     - http-server
 
