@@ -61,6 +61,7 @@ library
     , base >=4.7 && <5
     , bytestring
     , containers
+    , mtl
     , network
     , polysemy >=1.6.0.0
     , polysemy-plugin
@@ -90,13 +91,14 @@ executable ehop-http-server-exe
       GeneralizedNewtypeDeriving
       DeriveGeneric
       OverloadedStrings
-  ghc-options: -flate-specialise -fspecialise-aggressively -fplugin=Polysemy.Plugin -Wall -Wcompat -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -flate-specialise -fspecialise-aggressively -fplugin=Polysemy.Plugin -Wall -Wcompat -Wredundant-constraints -Wincomplete-record-updates -Wincomplete-uni-patterns -threaded -rtsopts
   build-depends:
       QuickCheck >=2.13 && <2.15
     , base >=4.7 && <5
     , bytestring
     , containers
     , ehop-http-server
+    , mtl
     , network
     , polysemy >=1.6.0.0
     , polysemy-plugin
@@ -134,6 +136,7 @@ test-suite ehop-http-server-test
     , bytestring
     , containers
     , ehop-http-server
+    , mtl
     , network
     , polysemy >=1.6.0.0
     , polysemy-plugin

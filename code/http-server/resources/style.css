@@ -1,0 +1,44 @@
+* {
+    font-family: 'Roboto Flex', sans-serif;
+}
+
+body {
+    padding: 10px;
+    background-color:aliceblue
+}
+
+h1 {
+	color:purple;
+	font-weight:bold;
+}
+
+.container {
+    background:rgb(42, 226, 226);
+    border-radius: 0.3em;
+    padding:10px 30px 10px 20px;
+}
+
+pre {
+    font-family: Consolas;
+    font-size: 13px;
+    color:rgb(56, 56, 56);
+    display:flex;
+    width:100%;
+    min-height:500px;
+    max-height:500px;
+    overflow-y: scroll;
+    background:white;
+    border-left:solid rgb(255, 255, 255) 15px;
+}
+
+button {
+    background:rgb(206, 248, 248);
+    border:none;
+    padding:5px 15px;
+    border-radius:0.2em;
+    cursor:pointer;
+}
+
+button:active {
+    background:rgb(144, 240, 240);
+}
