@@ -10,6 +10,8 @@ A research on the performance and developer experience of applying <i>effect han
     </li>
 </ul>
 
+The results of this research can be found in a paper which can be found [here](https://repository.tudelft.nl/islandora/object/uuid:ffea061f-d832-4d54-9726-8389cd4bf42a?collection=education).
+
 <h2>Research Question</h2>
 <p>How does using effect handler oriented programming affect modularity, readability and maintainability of code for input-output intensive applications when compared to "traditional" implementations?
 </p>
